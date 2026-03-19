@@ -59,26 +59,14 @@ export function Panel({ isOpen, config, provider, onClose }: PanelProps) {
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
     try {
-      const stream = provider.sendMessageStream({ content });
-      let fullContent = "";
-
-      for await (const event of stream) {
-        if (event.type === "content" && event.content) {
-          fullContent += event.content;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsg.id ? { ...m, content: fullContent, status: "streaming" } : m,
-            ),
-          );
-        } else if (event.type === "error") {
-          throw new Error(event.error ?? "Stream error");
-        } else if (event.type === "done") {
-          break;
-        }
-      }
+      const result = await provider.sendMessage({ content });
 
       setMessages((prev) =>
-        prev.map((m) => (m.id === assistantMsg.id ? { ...m, status: "complete" } : m)),
+        prev.map((m) =>
+          m.id === assistantMsg.id
+            ? { ...m, content: result.message.content, status: "complete" }
+            : m,
+        ),
       );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";
@@ -149,7 +137,7 @@ export function Panel({ isOpen, config, provider, onClose }: PanelProps) {
           </div>
         ))}
 
-        {isLoading && messages[messages.length - 1]?.status === "pending" && (
+        {isLoading && (
           <div className="prc-widget-typing">
             <span className="prc-widget-typing-dot" />
             <span className="prc-widget-typing-dot" />

@@ -176,6 +176,7 @@ export const WIDGET_CSS = `
   font-size: 14px;
   font-family: inherit;
   outline: none;
+  min-height: 44px;
   max-height: 120px;
   background: white;
   color: var(--prc-text-color);

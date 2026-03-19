@@ -58,43 +58,20 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       dispatch({ type: "SET_ERROR", error: null });
 
       try {
-        const stream = provider.sendMessageStream({ content, sessionId }, controller.signal);
-
-        for await (const event of stream) {
-          if (controller.signal.aborted) break;
-
-          switch (event.type) {
-            case "content":
-              if (event.content) {
-                dispatch({
-                  type: "APPEND_CONTENT",
-                  id: assistantMessage.id,
-                  content: event.content,
-                });
-              }
-              break;
-
-            case "error":
-              throw new Error(event.error ?? "Stream error");
-
-            case "done":
-              break;
-          }
-        }
+        const result = await provider.sendMessage({ content, sessionId });
 
         if (!controller.signal.aborted) {
           dispatch({
-            type: "SET_STATUS",
+            type: "UPDATE_MESSAGE",
             id: assistantMessage.id,
-            status: "complete",
+            updates: {
+              content: result.message.content,
+              status: "complete",
+              executionId: result.executionId,
+            },
           });
 
-          // Get the final message for onFinish callback
-          const finalMessages = state.messages;
-          const finalMsg = finalMessages.find((m) => m.id === assistantMessage.id);
-          if (finalMsg) {
-            onFinish?.(finalMsg);
-          }
+          onFinish?.(result.message);
         }
       } catch (err) {
         if (!controller.signal.aborted) {

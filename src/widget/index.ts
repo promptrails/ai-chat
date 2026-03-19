@@ -11,7 +11,7 @@ let isOpen = false;
  * @example
  * ```js
  * PromptRailsChat.init({
- *   provider: { type: 'promptrails', apiKey: 'pk_...', baseUrl: 'https://api.example.com', agentId: 'abc', workspaceId: 'ws1' },
+ *   provider: { type: 'promptrails', apiKey: 'pr_...', agentId: 'abc' },
  *   title: 'Support Chat',
  *   position: 'bottom-right',
  * });

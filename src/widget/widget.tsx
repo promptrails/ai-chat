@@ -21,7 +21,6 @@ export function Widget({ config }: WidgetProps) {
       case "promptrails":
         return createPromptRailsProvider({
           apiKey: (rest.apiKey as string) ?? "",
-          workspaceId: (rest.workspaceId as string) ?? "",
           agentId: (rest.agentId as string) ?? "",
           baseUrl: rest.baseUrl as string | undefined,
         });

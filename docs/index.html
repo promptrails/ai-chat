@@ -725,10 +725,9 @@
 <span class="code-tag">&lt;script</span>
   <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"</span>
   <span class="code-attr">data-provider</span>=<span class="code-string">"promptrails"</span>
-  <span class="code-attr">data-api-key</span>=<span class="code-string">"pk_your_api_key"</span>
+  <span class="code-attr">data-api-key</span>=<span class="code-string">"pr_your_api_key"</span>
   <span class="code-attr">data-base-url</span>=<span class="code-string">"https://api.example.com"</span>
   <span class="code-attr">data-agent-id</span>=<span class="code-string">"your_agent_id"</span>
-  <span class="code-attr">data-workspace-id</span>=<span class="code-string">"your_workspace_id"</span>
   <span class="code-attr">data-title</span>=<span class="code-string">"Support Chat"</span>
   <span class="code-attr">data-greeting</span>=<span class="code-string">"Hi! How can I help you today?"</span>
   <span class="code-attr">data-position</span>=<span class="code-string">"bottom-right"</span>
@@ -762,8 +761,7 @@
 
 <span class="code-keyword">const</span> provider = <span class="code-keyword">createPromptRailsProvider</span>({
   baseUrl: <span class="code-string">"https://api.example.com"</span>,
-  apiKey: <span class="code-string">"pk_your_api_key"</span>,
-  workspaceId: <span class="code-string">"your_workspace_id"</span>,
+  apiKey: <span class="code-string">"pr_your_api_key"</span>,
   agentId: <span class="code-string">"your_agent_id"</span>,
 });
 
@@ -850,7 +848,7 @@
         </div>
         <div class="form-group">
           <label for="demo-apikey">API Key</label>
-          <input id="demo-apikey" type="text" placeholder="pk_..." oninput="updateDemo()" />
+          <input id="demo-apikey" type="text" placeholder="pr_..." oninput="updateDemo()" />
         </div>
         <div class="form-group" id="baseurl-group">
           <label for="demo-baseurl">Base URL</label>
@@ -858,11 +856,7 @@
         </div>
         <div class="form-group" id="agent-id-group">
           <label for="demo-agentid">Agent ID</label>
-          <input id="demo-agentid" type="text" placeholder="agent_..." oninput="updateDemo()" />
-        </div>
-        <div class="form-group" id="workspace-id-group">
-          <label for="demo-workspaceid">Workspace ID</label>
-          <input id="demo-workspaceid" type="text" placeholder="ws_..." oninput="updateDemo()" />
+          <input id="demo-agentid" type="text" placeholder="your_agent_id" oninput="updateDemo()" />
         </div>
         <div class="form-group">
           <label for="demo-title">Chat Title</label>
@@ -1016,7 +1010,6 @@
       const apiKey = document.getElementById('demo-apikey').value || 'YOUR_API_KEY';
       const baseUrl = document.getElementById('demo-baseurl').value || 'https://api.example.com';
       const agentId = document.getElementById('demo-agentid').value || 'YOUR_AGENT_ID';
-      const workspaceId = document.getElementById('demo-workspaceid').value || 'YOUR_WORKSPACE_ID';
       const title = document.getElementById('demo-title').value || 'AI Assistant';
       const color = document.getElementById('demo-color').value;
       const greeting = document.getElementById('demo-greeting').value;
@@ -1024,7 +1017,6 @@
       // Show/hide provider-specific fields
       const isPromptRails = provider === 'promptrails';
       document.getElementById('agent-id-group').style.display = isPromptRails ? '' : 'none';
-      document.getElementById('workspace-id-group').style.display = isPromptRails ? '' : 'none';
       document.getElementById('baseurl-group').style.display = isPromptRails ? 'none' : '';
 
       let attrs = `  data-provider="${provider}"
@@ -1035,8 +1027,7 @@
       }
 
       if (isPromptRails) {
-        attrs += `\n  data-agent-id="${agentId}"
-  data-workspace-id="${workspaceId}"`;
+        attrs += `\n  data-agent-id="${agentId}"`;
       }
 
       attrs += `\n  data-title="${title}"
@@ -1067,6 +1058,7 @@ ${attrs}
       const greeting = document.getElementById('demo-greeting').value;
       const apiKey = document.getElementById('demo-apikey').value;
       const baseUrl = document.getElementById('demo-baseurl').value;
+      const agentId = document.getElementById('demo-agentid').value;
 
       const config = {
         provider: { type: provider },
@@ -1078,6 +1070,7 @@ ${attrs}
 
       if (apiKey) config.provider.apiKey = apiKey;
       if (baseUrl) config.provider.baseUrl = baseUrl;
+      if (agentId) config.provider.agentId = agentId;
 
       if (typeof PromptRailsChat !== 'undefined') {
         PromptRailsChat.destroy();
@@ -1092,7 +1085,7 @@ ${attrs}
   </script>
 
   <!-- Widget script for live demo -->
-  <script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.1.0/dist/widget.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"></script>
 
 </body>
 </html>

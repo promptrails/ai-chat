@@ -29,10 +29,8 @@ npm install @promptrails/ai-chat
 <script
   src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"
   data-provider="promptrails"
-  data-api-key="pk_your_api_key"
-  data-base-url="https://api.example.com"
+  data-api-key="pr_your_api_key"
   data-agent-id="your_agent_id"
-  data-workspace-id="your_workspace_id"
   data-title="Support Chat"
   data-greeting="Hi! How can I help you today?"
 ></script>
@@ -73,9 +71,7 @@ import { ChatWindow, createPromptRailsProvider } from "@promptrails/ai-chat";
 import "@promptrails/ai-chat/styles.css";
 
 const provider = createPromptRailsProvider({
-  baseUrl: "https://api.example.com",
-  apiKey: "pk_your_api_key",
-  workspaceId: "your_workspace_id",
+  apiKey: "pr_your_api_key",
   agentId: "your_agent_id",
 });
 
@@ -136,10 +132,8 @@ export default function CustomChat() {
 import { createPromptRailsProvider } from "@promptrails/ai-chat";
 
 const provider = createPromptRailsProvider({
-  baseUrl: "https://api.example.com",
-  apiKey: "pk_...",
-  workspaceId: "ws_...",
-  agentId: "agent_...",
+  apiKey: "pr_...",
+  agentId: "your_agent_id",
 });
 ```
 
@@ -275,7 +269,6 @@ import { createOpenAIProvider } from "@promptrails/ai-chat/providers";
 | `data-api-key` | API key for the provider | — |
 | `data-base-url` | Backend API URL | — |
 | `data-agent-id` | PromptRails agent ID | — |
-| `data-workspace-id` | PromptRails workspace ID | — |
 | `data-model` | LLM model name (OpenAI) | `"gpt-4o-mini"` |
 | `data-title` | Chat window title | `"Chat"` |
 | `data-placeholder` | Input placeholder text | `"Type a message..."` |

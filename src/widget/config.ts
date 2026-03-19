@@ -18,7 +18,6 @@ export function parseScriptTagConfig(): Partial<WidgetConfig> | null {
       apiKey: script.dataset.apiKey,
       baseUrl: script.dataset.baseUrl,
       agentId: script.dataset.agentId,
-      workspaceId: script.dataset.workspaceId,
       model: script.dataset.model,
     },
     position: (script.dataset.position as WidgetConfig["position"]) ?? "bottom-right",

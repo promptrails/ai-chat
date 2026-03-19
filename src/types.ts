@@ -172,7 +172,6 @@ export interface WidgetConfig {
     apiKey?: string;
     baseUrl?: string;
     agentId?: string;
-    workspaceId?: string;
     model?: string;
     [key: string]: unknown;
   };

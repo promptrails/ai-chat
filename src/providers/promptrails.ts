@@ -1,10 +1,5 @@
-import type {
-  ApprovalDecision,
-  ApprovalRequest,
-  ChatSession,
-  Message,
-  StreamEvent,
-} from "../types";
+import { PromptRails } from "@promptrails/sdk";
+import type { StreamEvent, Message, ApprovalRequest, ApprovalDecision } from "../types";
 import { generateId, parseSSEStream } from "../core/utils";
 import type {
   ChatProvider,
@@ -15,79 +10,67 @@ import type {
 
 export interface PromptRailsProviderConfig {
   apiKey: string;
-  workspaceId: string;
   agentId: string;
   /** Defaults to https://api.promptrails.ai */
   baseUrl?: string;
 }
 
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  error?: string;
-}
-
 export function createPromptRailsProvider(config: PromptRailsProviderConfig): ChatProvider {
-  const { apiKey, workspaceId, agentId, baseUrl = "https://api.promptrails.ai" } = config;
+  const { apiKey, agentId, baseUrl = "https://api.promptrails.ai" } = config;
+
+  const client = new PromptRails({ apiKey, baseUrl });
+
+  // Auto-managed session
+  let sessionId: string | null = null;
+
+  async function ensureSession(): Promise<string> {
+    if (sessionId) return sessionId;
+    const session = await client.chat.createSession({
+      agent_id: agentId,
+      title: "Chat",
+    });
+    sessionId = session.id;
+    return sessionId;
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-    "X-Workspace-ID": workspaceId,
+    "X-API-Key": apiKey,
   };
-
-  async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      let message = `HTTP ${response.status}`;
-      try {
-        const parsed = JSON.parse(errorBody);
-        message = parsed.error || parsed.message || message;
-      } catch {
-        // ignore parse error
-      }
-      throw new Error(message);
-    }
-
-    const json = (await response.json()) as ApiResponse<T>;
-    if (json.error) {
-      throw new Error(json.error);
-    }
-    return json.data;
-  }
 
   const provider: ChatProvider = {
     async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
-      const sessionId = params.sessionId;
-      if (!sessionId) {
-        throw new Error("sessionId is required for PromptRails provider");
+      const sid = params.sessionId ?? (await ensureSession());
+
+      const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sid}/messages`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ content: params.content }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        let msg = `HTTP ${response.status}`;
+        try {
+          const parsed = JSON.parse(body);
+          msg = parsed.error?.message || parsed.message || msg;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
       }
 
-      const data = await request<{
-        id: string;
-        role: string;
-        content: string;
-        created_at: string;
-        execution_id?: string;
-      }>("POST", `/api/v1/chat/sessions/${sessionId}/messages`, {
-        content: params.content,
-        metadata: params.metadata,
-      });
+      const json = await response.json();
+      const data = json.data;
+      const assistantMsg = data.assistant_message;
 
       return {
         message: {
-          id: data.id,
+          id: assistantMsg.id,
           role: "assistant",
-          content: data.content,
+          content: assistantMsg.content,
           status: "complete",
-          createdAt: new Date(data.created_at),
-          executionId: data.execution_id,
+          createdAt: new Date(assistantMsg.created_at),
         },
         executionId: data.execution_id,
       };
@@ -97,20 +80,18 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
       params: SendMessageParams,
       signal?: AbortSignal,
     ): AsyncGenerator<StreamEvent> {
-      const sessionId = params.sessionId;
-      if (!sessionId) {
-        throw new Error("sessionId is required for PromptRails provider");
-      }
+      const sid = params.sessionId ?? (await ensureSession());
 
-      const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sessionId}/messages/stream`, {
+      // SDK doesn't support streaming, use fetch directly
+      const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sid}/messages/stream`, {
         method: "POST",
         headers: {
-          ...headers,
+          "Content-Type": "application/json",
+          "X-API-Key": apiKey,
           Accept: "text/event-stream",
         },
         body: JSON.stringify({
           content: params.content,
-          metadata: params.metadata,
         }),
         signal,
       });
@@ -122,82 +103,69 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
       yield* parseSSEStream(response, signal);
     },
 
-    async createSession(_agentId?: string, title?: string): Promise<ChatSession> {
-      const data = await request<{
-        id: string;
-        agent_id: string;
-        title: string;
-        created_at: string;
-      }>("POST", `/api/v1/chat/sessions`, {
+    async createSession(_agentId?: string, title?: string) {
+      const session = await client.chat.createSession({
         agent_id: agentId,
-        title: title || "New Chat",
+        title: title || "Chat",
       });
-
+      sessionId = session.id;
       return {
-        id: data.id,
-        agentId: data.agent_id,
-        title: data.title,
-        createdAt: new Date(data.created_at),
+        id: session.id,
+        agentId: session.agent_id,
+        title: session.title,
+        createdAt: new Date(session.created_at),
       };
     },
 
-    async listMessages(
-      sessionId: string,
-      page?: number,
-    ): Promise<{ messages: Message[]; total: number }> {
-      const data = await request<{
-        items: Array<{
-          id: string;
-          role: string;
-          content: string;
-          created_at: string;
-        }>;
-        total: number;
-      }>("GET", `/api/v1/chat/sessions/${sessionId}/messages?page=${page ?? 1}`);
+    async listMessages(sid: string, page?: number) {
+      const result = await client.chat.listMessages(sid, {
+        page: page ?? 1,
+        limit: 50,
+      });
 
       return {
-        messages: data.items.map((item) => ({
-          id: item.id || generateId(),
-          role: item.role as Message["role"],
-          content: item.content,
-          status: "complete" as const,
-          createdAt: new Date(item.created_at),
-        })),
-        total: data.total,
+        messages: result.data.map(
+          (item): Message => ({
+            id: item.id || generateId(),
+            role: item.role as Message["role"],
+            content: item.content,
+            status: "complete",
+            createdAt: new Date(item.created_at),
+          }),
+        ),
+        total: result.meta.total,
       };
     },
 
     async getExecutionStatus(executionId: string): Promise<ExecutionStatusResult> {
-      return await request<ExecutionStatusResult>("GET", `/api/v1/executions/${executionId}`);
+      const result = await client.executions.get(executionId);
+      return {
+        status: result.status as ExecutionStatusResult["status"],
+        output: result.output as Record<string, unknown> | undefined,
+        error: result.error || undefined,
+      };
     },
 
     async listApprovals(filters?: { status?: string }): Promise<ApprovalRequest[]> {
-      const query = filters?.status ? `?status=${filters.status}` : "";
-      const data = await request<
-        Array<{
-          id: string;
-          execution_id: string;
-          agent_id?: string;
-          checkpoint_name: string;
-          payload: Record<string, unknown>;
-          status: string;
-          reason?: string;
-          decided_at?: string;
-          created_at: string;
-        }>
-      >("GET", `/api/v1/approvals${query}`);
+      const result = await client.approvals.list({
+        page: 1,
+        limit: 50,
+        ...(filters?.status ? { status: filters.status } : {}),
+      });
 
-      return data.map((item) => ({
-        id: item.id,
-        executionId: item.execution_id,
-        agentId: item.agent_id,
-        checkpointName: item.checkpoint_name,
-        payload: item.payload,
-        status: item.status as ApprovalRequest["status"],
-        reason: item.reason,
-        decidedAt: item.decided_at ? new Date(item.decided_at) : undefined,
-        createdAt: new Date(item.created_at),
-      }));
+      return result.data.map(
+        (item): ApprovalRequest => ({
+          id: item.id,
+          executionId: item.execution_id,
+          agentId: item.agent_id,
+          checkpointName: item.checkpoint_name,
+          payload: item.payload as Record<string, unknown>,
+          status: item.status as ApprovalRequest["status"],
+          reason: item.reason,
+          decidedAt: item.decided_at ? new Date(item.decided_at) : undefined,
+          createdAt: new Date(item.created_at),
+        }),
+      );
     },
 
     async decideApproval(
@@ -205,17 +173,7 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
       decision: ApprovalDecision,
       reason?: string,
     ): Promise<ApprovalRequest> {
-      const data = await request<{
-        id: string;
-        execution_id: string;
-        agent_id?: string;
-        checkpoint_name: string;
-        payload: Record<string, unknown>;
-        status: string;
-        reason?: string;
-        decided_at?: string;
-        created_at: string;
-      }>("POST", `/api/v1/approvals/${id}/decide`, {
+      const data = await client.approvals.decide(id, {
         decision,
         reason,
       });
@@ -225,12 +183,16 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
         executionId: data.execution_id,
         agentId: data.agent_id,
         checkpointName: data.checkpoint_name,
-        payload: data.payload,
+        payload: data.payload as Record<string, unknown>,
         status: data.status as ApprovalRequest["status"],
         reason: data.reason,
         decidedAt: data.decided_at ? new Date(data.decided_at) : undefined,
         createdAt: new Date(data.created_at),
       };
+    },
+
+    disconnect() {
+      sessionId = null;
     },
   };
 
