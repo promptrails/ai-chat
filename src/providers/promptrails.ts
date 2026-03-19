@@ -18,6 +18,9 @@ export interface PromptRailsProviderConfig {
 export function createPromptRailsProvider(config: PromptRailsProviderConfig): ChatProvider {
   const { apiKey, agentId, baseUrl = "https://api.promptrails.ai" } = config;
 
+  if (!apiKey) throw new Error("@promptrails/ai-chat: apiKey is required.");
+  if (!agentId) throw new Error("@promptrails/ai-chat: agentId is required.");
+
   const client = new PromptRails({ apiKey, baseUrl });
 
   // Auto-managed session

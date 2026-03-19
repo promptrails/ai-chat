@@ -41,6 +41,14 @@ export function resolveConfig(config: Partial<WidgetConfig>): WidgetConfig {
     );
   }
 
+  if (!config.provider.apiKey) {
+    throw new Error("@promptrails/ai-chat: provider.apiKey is required.");
+  }
+
+  if (config.provider.type === "promptrails" && !config.provider.agentId) {
+    throw new Error("@promptrails/ai-chat: provider.agentId is required for PromptRails provider.");
+  }
+
   return {
     provider: config.provider as WidgetConfig["provider"],
     position: config.position ?? "bottom-right",

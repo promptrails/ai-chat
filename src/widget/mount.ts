@@ -16,9 +16,16 @@ export function mount(config: WidgetConfig): void {
     return;
   }
 
-  // Create container element
+  // Create container element (fixed position, zero size to prevent scroll)
   container = document.createElement("div");
   container.id = "promptrails-chat-widget";
+  container.style.position = "fixed";
+  container.style.top = "0";
+  container.style.left = "0";
+  container.style.width = "0";
+  container.style.height = "0";
+  container.style.overflow = "visible";
+  container.style.zIndex = "9999";
   document.body.appendChild(container);
 
   // Create shadow DOM
