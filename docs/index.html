@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>@promptrails/ai-chat — AI Chat Widget + React Hooks</title>
+  <meta name="description" content="Embeddable AI chat widget and React hooks for building AI-powered chat interfaces. Supports PromptRails, OpenAI, and custom backends." />
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --bg: #ffffff;
+      --bg-secondary: #f8fafc;
+      --text: #0f172a;
+      --text-secondary: #64748b;
+      --border: #e2e8f0;
+      --code-bg: #1e293b;
+      --code-text: #e2e8f0;
+      --accent-green: #22c55e;
+      --accent-amber: #f59e0b;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Navigation */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-logo span { color: var(--primary); }
+    .nav-links { display: flex; gap: 24px; align-items: center; }
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-github {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 80px 24px 60px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: #eff6ff;
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      letter-spacing: -0.03em;
+    }
+    .hero h1 span { color: var(--primary); }
+    .hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--border); }
+
+    .install-cmd {
+      margin-top: 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 14px;
+    }
+    .install-cmd .dollar { color: var(--accent-green); }
+    .install-cmd button {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .install-cmd button:hover { color: white; }
+
+    /* Features */
+    .features {
+      padding: 60px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .features h2 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 48px;
+      letter-spacing: -0.02em;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--bg);
+      transition: box-shadow 0.2s;
+    }
+    .feature-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 22px;
+    }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* Layers section */
+    .layers {
+      padding: 60px 24px;
+      background: var(--bg-secondary);
+    }
+    .layers-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .layers h2 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 48px;
+    }
+    .layer-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .layer-tab {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-secondary);
+    }
+    .layer-tab.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .layer-content { display: none; }
+    .layer-content.active { display: block; }
+
+    /* Code blocks */
+    .code-block {
+      background: var(--code-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.2);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .code-header button {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-secondary);
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .code-header button:hover { color: white; border-color: rgba(255,255,255,0.3); }
+    pre {
+      padding: 20px;
+      overflow-x: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--code-text);
+    }
+    .code-keyword { color: #c084fc; }
+    .code-string { color: #86efac; }
+    .code-comment { color: #64748b; }
+    .code-tag { color: #f472b6; }
+    .code-attr { color: #93c5fd; }
+
+    /* Demo section */
+    .demo {
+      padding: 60px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .demo h2 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .demo > p {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+    .demo-config {
+      max-width: 600px;
+      margin: 0 auto 32px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--bg-secondary);
+    }
+    .demo-config h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .form-group input, .form-group select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      outline: none;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.1);
+    }
+    .demo-btn {
+      margin-top: 16px;
+      width: 100%;
+    }
+    .demo-output {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .demo-output .code-block { margin-top: 16px; }
+
+    /* Comparison table */
+    .comparison {
+      padding: 60px 24px;
+      background: var(--bg-secondary);
+    }
+    .comparison-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .comparison h2 {
+      text-align: center;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 48px;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: white;
+    }
+    th, td {
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: var(--bg-secondary);
+      font-weight: 700;
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    .check { color: var(--accent-green); font-weight: 700; }
+    .cross { color: #ef4444; }
+
+    /* Footer */
+    footer {
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    footer a { color: var(--primary); text-decoration: none; }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-logo"><span>@promptrails</span>/ai-chat</a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#usage">Usage</a>
+        <a href="#demo">Demo</a>
+        <a href="#comparison">Comparison</a>
+        <a href="https://github.com/promptrails/ai-chat" class="nav-github" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <span class="hero-badge">Open Source</span>
+    <h1>AI Chat for<br /><span>Any Website</span></h1>
+    <p>Drop-in chat widget + React hooks for building AI-powered interfaces. Works with PromptRails, OpenAI, or any custom backend.</p>
+    <div class="hero-actions">
+      <a href="#demo" class="btn btn-primary">Try the Demo</a>
+      <a href="#usage" class="btn btn-secondary">View Docs</a>
+    </div>
+    <div class="install-cmd">
+      <span class="dollar">$</span>
+      <span>npm install @promptrails/ai-chat</span>
+      <button onclick="navigator.clipboard.writeText('npm install @promptrails/ai-chat')" title="Copy">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <h2>Three Ways to Use</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#eff6ff;">&#x1F3A3;</div>
+        <h3>React Hooks</h3>
+        <p>Build your own UI with <code>useChat()</code>, <code>useStreaming()</code>, <code>useAgent()</code>, and <code>useApproval()</code>. Full control over every pixel.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#f0fdf4;">&#x1F9F1;</div>
+        <h3>React Components</h3>
+        <p>Ready-to-use <code>&lt;ChatWindow /&gt;</code>, <code>&lt;MessageBubble /&gt;</code>, <code>&lt;AgentSteps /&gt;</code> and more. Customize with Tailwind classes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#fefce8;">&#x1F4E6;</div>
+        <h3>Embeddable Widget</h3>
+        <p>One <code>&lt;script&gt;</code> tag — no React, no build tools needed. Floating chat bubble with full isolation via Shadow DOM.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#fdf2f8;">&#x1F916;</div>
+        <h3>Agent Steps Tracking</h3>
+        <p>Multi-step agent execution timeline with real-time status updates. Perfect for chain and workflow agents.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#fff7ed;">&#x2705;</div>
+        <h3>Human-in-the-Loop</h3>
+        <p>Built-in approval flow UI — checkpoint name, payload preview, approve/reject buttons. No extra work needed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:#f5f3ff;">&#x1F50C;</div>
+        <h3>Multi-Provider</h3>
+        <p>PromptRails, OpenAI, or any custom SSE/WebSocket backend. Switch providers without changing your UI code.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Usage / Layers -->
+  <section class="layers" id="usage">
+    <div class="layers-inner">
+      <h2>Pick Your Layer</h2>
+      <div class="layer-tabs">
+        <button class="layer-tab active" onclick="showLayer('script')">Script Tag</button>
+        <button class="layer-tab" onclick="showLayer('component')">React Component</button>
+        <button class="layer-tab" onclick="showLayer('hooks')">React Hooks</button>
+      </div>
+
+      <!-- Script Tag -->
+      <div class="layer-content active" id="layer-script">
+        <div class="code-block">
+          <div class="code-header">
+            <span>index.html</span>
+            <button onclick="copyCode('script-code')">Copy</button>
+          </div>
+          <pre id="script-code"><span class="code-comment">&lt;!-- Add to any website — no React needed --&gt;</span>
+<span class="code-tag">&lt;script</span>
+  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"</span>
+  <span class="code-attr">data-provider</span>=<span class="code-string">"promptrails"</span>
+  <span class="code-attr">data-api-key</span>=<span class="code-string">"pk_your_api_key"</span>
+  <span class="code-attr">data-base-url</span>=<span class="code-string">"https://api.example.com"</span>
+  <span class="code-attr">data-agent-id</span>=<span class="code-string">"your_agent_id"</span>
+  <span class="code-attr">data-workspace-id</span>=<span class="code-string">"your_workspace_id"</span>
+  <span class="code-attr">data-title</span>=<span class="code-string">"Support Chat"</span>
+  <span class="code-attr">data-greeting</span>=<span class="code-string">"Hi! How can I help you today?"</span>
+  <span class="code-attr">data-position</span>=<span class="code-string">"bottom-right"</span>
+  <span class="code-attr">data-primary-color</span>=<span class="code-string">"#2563eb"</span>
+<span class="code-tag">&gt;&lt;/script&gt;</span>
+
+<span class="code-comment">&lt;!-- Or initialize programmatically --&gt;</span>
+<span class="code-tag">&lt;script&gt;</span>
+  PromptRailsChat.<span class="code-keyword">init</span>({
+    provider: {
+      type: <span class="code-string">"openai"</span>,
+      apiKey: <span class="code-string">"sk-..."</span>,
+      model: <span class="code-string">"gpt-4o-mini"</span>,
+    },
+    title: <span class="code-string">"AI Assistant"</span>,
+  });
+<span class="code-tag">&lt;/script&gt;</span></pre>
+        </div>
+      </div>
+
+      <!-- React Component -->
+      <div class="layer-content" id="layer-component">
+        <div class="code-block">
+          <div class="code-header">
+            <span>App.tsx</span>
+            <button onclick="copyCode('component-code')">Copy</button>
+          </div>
+          <pre id="component-code"><span class="code-keyword">import</span> { ChatWindow, createPromptRailsProvider } <span class="code-keyword">from</span> <span class="code-string">"@promptrails/ai-chat"</span>;
+<span class="code-keyword">import</span> <span class="code-string">"@promptrails/ai-chat/styles.css"</span>;
+
+<span class="code-keyword">const</span> provider = <span class="code-keyword">createPromptRailsProvider</span>({
+  baseUrl: <span class="code-string">"https://api.example.com"</span>,
+  apiKey: <span class="code-string">"pk_your_api_key"</span>,
+  workspaceId: <span class="code-string">"your_workspace_id"</span>,
+  agentId: <span class="code-string">"your_agent_id"</span>,
+});
+
+<span class="code-keyword">export default function</span> App() {
+  <span class="code-keyword">return</span> (
+    <span class="code-tag">&lt;ChatWindow</span>
+      <span class="code-attr">provider</span>={provider}
+      <span class="code-attr">title</span>=<span class="code-string">"Support Chat"</span>
+      <span class="code-attr">showAgentSteps</span>
+      <span class="code-attr">showApprovals</span>
+    <span class="code-tag">/&gt;</span>
+  );
+}</pre>
+        </div>
+      </div>
+
+      <!-- React Hooks -->
+      <div class="layer-content" id="layer-hooks">
+        <div class="code-block">
+          <div class="code-header">
+            <span>CustomChat.tsx</span>
+            <button onclick="copyCode('hooks-code')">Copy</button>
+          </div>
+          <pre id="hooks-code"><span class="code-keyword">import</span> { useChat, createOpenAIProvider } <span class="code-keyword">from</span> <span class="code-string">"@promptrails/ai-chat"</span>;
+
+<span class="code-keyword">const</span> provider = <span class="code-keyword">createOpenAIProvider</span>({
+  apiKey: <span class="code-string">"sk-..."</span>,
+  model: <span class="code-string">"gpt-4o-mini"</span>,
+});
+
+<span class="code-keyword">export default function</span> CustomChat() {
+  <span class="code-keyword">const</span> {
+    messages, isLoading, input,
+    setInput, handleSubmit
+  } = <span class="code-keyword">useChat</span>({ provider });
+
+  <span class="code-keyword">return</span> (
+    <span class="code-tag">&lt;div&gt;</span>
+      {messages.<span class="code-keyword">map</span>((msg) =&gt; (
+        <span class="code-tag">&lt;div</span> <span class="code-attr">key</span>={msg.id} <span class="code-attr">className</span>={msg.role}<span class="code-tag">&gt;</span>
+          {msg.content}
+        <span class="code-tag">&lt;/div&gt;</span>
+      ))}
+
+      <span class="code-tag">&lt;form</span> <span class="code-attr">onSubmit</span>={handleSubmit}<span class="code-tag">&gt;</span>
+        <span class="code-tag">&lt;input</span>
+          <span class="code-attr">value</span>={input}
+          <span class="code-attr">onChange</span>={(e) =&gt; setInput(e.target.value)}
+          <span class="code-attr">placeholder</span>=<span class="code-string">"Type a message..."</span>
+        <span class="code-tag">/&gt;</span>
+        <span class="code-tag">&lt;button</span> <span class="code-attr">disabled</span>={isLoading}<span class="code-tag">&gt;</span>Send<span class="code-tag">&lt;/button&gt;</span>
+      <span class="code-tag">&lt;/form&gt;</span>
+    <span class="code-tag">&lt;/div&gt;</span>
+  );
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Demo -->
+  <section class="demo" id="demo">
+    <h2>Try It Live</h2>
+    <p>Configure the widget and see the generated code. Click "Launch Widget" to test it on this page.</p>
+
+    <div class="demo-config">
+      <h3>Widget Configuration</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="demo-provider">Provider</label>
+          <select id="demo-provider" onchange="updateDemo()">
+            <option value="promptrails">PromptRails</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="demo-position">Position</label>
+          <select id="demo-position" onchange="updateDemo()">
+            <option value="bottom-right">Bottom Right</option>
+            <option value="bottom-left">Bottom Left</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="demo-apikey">API Key</label>
+          <input id="demo-apikey" type="text" placeholder="pk_..." oninput="updateDemo()" />
+        </div>
+        <div class="form-group">
+          <label for="demo-baseurl">Base URL</label>
+          <input id="demo-baseurl" type="text" placeholder="https://api.example.com" oninput="updateDemo()" />
+        </div>
+        <div class="form-group" id="agent-id-group">
+          <label for="demo-agentid">Agent ID</label>
+          <input id="demo-agentid" type="text" placeholder="agent_..." oninput="updateDemo()" />
+        </div>
+        <div class="form-group" id="workspace-id-group">
+          <label for="demo-workspaceid">Workspace ID</label>
+          <input id="demo-workspaceid" type="text" placeholder="ws_..." oninput="updateDemo()" />
+        </div>
+        <div class="form-group">
+          <label for="demo-title">Chat Title</label>
+          <input id="demo-title" type="text" placeholder="Support Chat" value="AI Assistant" oninput="updateDemo()" />
+        </div>
+        <div class="form-group">
+          <label for="demo-color">Primary Color</label>
+          <input id="demo-color" type="color" value="#2563eb" oninput="updateDemo()" />
+        </div>
+        <div class="form-group full">
+          <label for="demo-greeting">Greeting Message</label>
+          <input id="demo-greeting" type="text" placeholder="Hi! How can I help?" value="Hi! How can I help you today?" oninput="updateDemo()" />
+        </div>
+      </div>
+      <button class="btn btn-primary demo-btn" onclick="launchDemo()">
+        Launch Widget on This Page
+      </button>
+    </div>
+
+    <div class="demo-output">
+      <div class="code-block">
+        <div class="code-header">
+          <span>Generated Code</span>
+          <button onclick="copyCode('demo-code')">Copy</button>
+        </div>
+        <pre id="demo-code"></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison -->
+  <section class="comparison" id="comparison">
+    <div class="comparison-inner">
+      <h2>How It Compares</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>@promptrails/ai-chat</th>
+            <th>Vercel AI SDK</th>
+            <th>Flowise Embed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>React Hooks</td>
+            <td class="check">&#10003;</td>
+            <td class="check">&#10003;</td>
+            <td class="cross">&#10007;</td>
+          </tr>
+          <tr>
+            <td>Ready-made Components</td>
+            <td class="check">&#10003;</td>
+            <td class="cross">&#10007;</td>
+            <td class="cross">&#10007;</td>
+          </tr>
+          <tr>
+            <td>Embeddable Widget</td>
+            <td class="check">&#10003;</td>
+            <td class="cross">&#10007;</td>
+            <td class="check">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Agent Step Tracking</td>
+            <td class="check">&#10003;</td>
+            <td class="cross">&#10007;</td>
+            <td class="cross">&#10007;</td>
+          </tr>
+          <tr>
+            <td>Human-in-the-Loop</td>
+            <td class="check">&#10003;</td>
+            <td class="cross">&#10007;</td>
+            <td class="cross">&#10007;</td>
+          </tr>
+          <tr>
+            <td>Shadow DOM Isolation</td>
+            <td class="check">&#10003;</td>
+            <td>N/A</td>
+            <td class="check">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Multi-Provider</td>
+            <td class="check">&#10003;</td>
+            <td class="check">&#10003;</td>
+            <td class="cross">&#10007;</td>
+          </tr>
+          <tr>
+            <td>No Build Tools Required</td>
+            <td class="check">&#10003; (widget)</td>
+            <td class="cross">&#10007;</td>
+            <td class="check">&#10003;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>
+      <a href="https://github.com/promptrails/ai-chat" target="_blank">GitHub</a> &middot;
+      <a href="https://www.npmjs.com/package/@promptrails/ai-chat" target="_blank">npm</a> &middot;
+      MIT License &middot;
+      Built by <a href="https://promptrails.com" target="_blank">PromptRails</a>
+    </p>
+  </footer>
+
+  <script>
+    // Layer tabs
+    function showLayer(id) {
+      document.querySelectorAll('.layer-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.layer-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('layer-' + id).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Copy code
+    function copyCode(id) {
+      const el = document.getElementById(id);
+      const text = el.textContent;
+      navigator.clipboard.writeText(text);
+      const btn = el.closest('.code-block').querySelector('.code-header button');
+      const original = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = original, 1500);
+    }
+
+    // Demo config
+    function updateDemo() {
+      const provider = document.getElementById('demo-provider').value;
+      const position = document.getElementById('demo-position').value;
+      const apiKey = document.getElementById('demo-apikey').value || 'YOUR_API_KEY';
+      const baseUrl = document.getElementById('demo-baseurl').value || 'https://api.example.com';
+      const agentId = document.getElementById('demo-agentid').value || 'YOUR_AGENT_ID';
+      const workspaceId = document.getElementById('demo-workspaceid').value || 'YOUR_WORKSPACE_ID';
+      const title = document.getElementById('demo-title').value || 'AI Assistant';
+      const color = document.getElementById('demo-color').value;
+      const greeting = document.getElementById('demo-greeting').value;
+
+      // Show/hide provider-specific fields
+      const isPromptRails = provider === 'promptrails';
+      document.getElementById('agent-id-group').style.display = isPromptRails ? '' : 'none';
+      document.getElementById('workspace-id-group').style.display = isPromptRails ? '' : 'none';
+
+      let attrs = `  data-provider="${provider}"
+  data-api-key="${apiKey}"
+  data-base-url="${baseUrl}"`;
+
+      if (isPromptRails) {
+        attrs += `\n  data-agent-id="${agentId}"
+  data-workspace-id="${workspaceId}"`;
+      }
+
+      attrs += `\n  data-title="${title}"
+  data-position="${position}"
+  data-primary-color="${color}"`;
+
+      if (greeting) {
+        attrs += `\n  data-greeting="${greeting}"`;
+      }
+
+      const code = `<script
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"
+${attrs}
+><\/script>`;
+
+      document.getElementById('demo-code').textContent = code;
+    }
+
+    // Launch demo widget
+    function launchDemo() {
+      // Remove existing widget
+      const existing = document.getElementById('promptrails-chat-widget');
+      if (existing) existing.remove();
+
+      const provider = document.getElementById('demo-provider').value;
+      const position = document.getElementById('demo-position').value;
+      const title = document.getElementById('demo-title').value || 'AI Assistant';
+      const color = document.getElementById('demo-color').value;
+      const greeting = document.getElementById('demo-greeting').value;
+      const apiKey = document.getElementById('demo-apikey').value;
+      const baseUrl = document.getElementById('demo-baseurl').value;
+
+      // Create a mock provider config
+      const config = {
+        provider: { type: provider },
+        position: position,
+        title: title,
+        primaryColor: color,
+        greeting: greeting,
+      };
+
+      if (apiKey) config.provider.apiKey = apiKey;
+      if (baseUrl) config.provider.baseUrl = baseUrl;
+
+      // If the widget script is loaded, use it
+      if (typeof PromptRailsChat !== 'undefined') {
+        PromptRailsChat.destroy();
+        PromptRailsChat.init(config);
+      } else {
+        alert('Widget script not loaded. In production, include the widget.global.js script first.');
+      }
+    }
+
+    // Initialize demo on load
+    updateDemo();
+  </script>
+
+</body>
+</html>
