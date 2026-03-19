@@ -20,10 +20,10 @@ export function Widget({ config }: WidgetProps) {
     switch (type) {
       case "promptrails":
         return createPromptRailsProvider({
-          baseUrl: (rest.baseUrl as string) ?? "",
           apiKey: (rest.apiKey as string) ?? "",
           workspaceId: (rest.workspaceId as string) ?? "",
           agentId: (rest.agentId as string) ?? "",
+          baseUrl: rest.baseUrl as string | undefined,
         });
 
       case "openai":

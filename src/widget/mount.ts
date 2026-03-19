@@ -1,8 +1,8 @@
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { WidgetConfig } from "../types";
-import widgetStyles from "./styles.css?inline";
 import { Widget } from "./widget";
+import { WIDGET_CSS } from "./widget-styles";
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
@@ -26,7 +26,7 @@ export function mount(config: WidgetConfig): void {
 
   // Inject styles
   const styleEl = document.createElement("style");
-  styleEl.textContent = widgetStyles;
+  styleEl.textContent = WIDGET_CSS;
 
   // Apply custom CSS variables
   if (config.primaryColor) {

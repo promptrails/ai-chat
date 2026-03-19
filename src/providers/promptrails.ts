@@ -14,10 +14,11 @@ import type {
 } from "./types";
 
 export interface PromptRailsProviderConfig {
-  baseUrl: string;
   apiKey: string;
   workspaceId: string;
   agentId: string;
+  /** Defaults to https://api.promptrails.ai */
+  baseUrl?: string;
 }
 
 interface ApiResponse<T> {
@@ -27,7 +28,7 @@ interface ApiResponse<T> {
 }
 
 export function createPromptRailsProvider(config: PromptRailsProviderConfig): ChatProvider {
-  const { baseUrl, apiKey, workspaceId, agentId } = config;
+  const { apiKey, workspaceId, agentId, baseUrl = "https://api.promptrails.ai" } = config;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

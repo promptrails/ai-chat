@@ -852,7 +852,7 @@
           <label for="demo-apikey">API Key</label>
           <input id="demo-apikey" type="text" placeholder="pk_..." oninput="updateDemo()" />
         </div>
-        <div class="form-group">
+        <div class="form-group" id="baseurl-group">
           <label for="demo-baseurl">Base URL</label>
           <input id="demo-baseurl" type="text" placeholder="https://api.example.com" oninput="updateDemo()" />
         </div>
@@ -1025,10 +1025,14 @@
       const isPromptRails = provider === 'promptrails';
       document.getElementById('agent-id-group').style.display = isPromptRails ? '' : 'none';
       document.getElementById('workspace-id-group').style.display = isPromptRails ? '' : 'none';
+      document.getElementById('baseurl-group').style.display = isPromptRails ? 'none' : '';
 
       let attrs = `  data-provider="${provider}"
-  data-api-key="${apiKey}"
-  data-base-url="${baseUrl}"`;
+  data-api-key="${apiKey}"`;
+
+      if (!isPromptRails) {
+        attrs += `\n  data-base-url="${baseUrl}"`;
+      }
 
       if (isPromptRails) {
         attrs += `\n  data-agent-id="${agentId}"
