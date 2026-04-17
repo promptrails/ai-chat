@@ -26,7 +26,15 @@ export interface ToolCall {
 
 // === Streaming Types ===
 
-export type StreamEventType = "content" | "tool_call" | "status" | "error" | "done";
+export type StreamEventType =
+  | "content"
+  | "tool_call"
+  | "tool_start"
+  | "tool_end"
+  | "thinking"
+  | "status"
+  | "error"
+  | "done";
 
 export interface StreamEvent {
   type: StreamEventType;
@@ -35,6 +43,13 @@ export interface StreamEvent {
   executionId?: string;
   status?: ExecutionStatus;
   toolCall?: ToolCall;
+  /** tool_start / tool_end payload */
+  toolCallId?: string;
+  toolName?: string;
+  /** tool_end result summary (short string) */
+  toolSummary?: string;
+  /** thinking payload — intermediate reasoning text between tool rounds */
+  thinking?: string;
 }
 
 export type ExecutionStatus =
@@ -94,12 +109,25 @@ export interface UseChatOptions {
   onError?: (error: Error) => void;
   onFinish?: (message: Message) => void;
   maxRetries?: number;
+  /**
+   * When true (default) the hook uses provider.sendMessageStream and
+   * incrementally updates the assistant message — content deltas append to
+   * `message.content`, tool calls are aggregated into `message.toolCalls`.
+   * Set to false to fall back to the non-streaming provider.sendMessage.
+   */
+  stream?: boolean;
 }
 
 export interface UseStreamingOptions {
   onChunk?: (chunk: string) => void;
   onComplete?: (fullContent: string) => void;
   onError?: (error: Error) => void;
+  /** Called when a tool starts executing (status: "running"). */
+  onToolStart?: (toolCall: ToolCall) => void;
+  /** Called when a tool finishes (status: "complete"). The toolCall carries the summary in `result`. */
+  onToolEnd?: (toolCall: ToolCall) => void;
+  /** Called with intermediate reasoning text between tool rounds. */
+  onThinking?: (content: string) => void;
 }
 
 export interface UseAgentOptions {
@@ -127,6 +155,12 @@ export interface ChatWindowProps {
   className?: string;
   showAgentSteps?: boolean;
   showApprovals?: boolean;
+  /**
+   * Render tool call cards in assistant messages.
+   * Stream events still flow through the data layer regardless — this only
+   * controls whether the UI shows them. Defaults to true.
+   */
+  showToolCalls?: boolean;
   onError?: (error: Error) => void;
 }
 
@@ -134,6 +168,8 @@ export interface MessageBubbleProps {
   message: Message;
   className?: string;
   renderMarkdown?: boolean;
+  /** Render tool call cards on this message. Defaults to true. */
+  showToolCalls?: boolean;
 }
 
 export interface TypingIndicatorProps {

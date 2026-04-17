@@ -98,6 +98,24 @@ function parseSSEData(data: string, event: string): StreamEvent | null {
     if (event === "content" && parsed.content) {
       return { type: "content", content: parsed.content };
     }
+    if (event === "thinking" && typeof parsed.content === "string") {
+      return { type: "thinking", thinking: parsed.content };
+    }
+    if (event === "tool_start") {
+      return {
+        type: "tool_start",
+        toolCallId: parsed.id,
+        toolName: parsed.name,
+      };
+    }
+    if (event === "tool_end") {
+      return {
+        type: "tool_end",
+        toolCallId: parsed.id,
+        toolName: parsed.name,
+        toolSummary: parsed.summary,
+      };
+    }
     if (event === "error") {
       return {
         type: "error",

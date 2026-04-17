@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useReducer, useRef, useState } from "react";
-import type { Message, UseChatOptions } from "../types";
+import type { Message, ToolCall, UseChatOptions } from "../types";
 import { initialState, messagesReducer } from "./message-store";
 import { generateId } from "./utils";
 
@@ -17,7 +17,7 @@ export interface UseChatReturn {
 }
 
 export function useChat(options: UseChatOptions): UseChatReturn {
-  const { provider, initialMessages, sessionId, onError, onFinish } = options;
+  const { provider, initialMessages, sessionId, onError, onFinish, stream = true } = options;
 
   const [state, dispatch] = useReducer(messagesReducer, {
     ...initialState,
@@ -58,20 +58,123 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       dispatch({ type: "SET_ERROR", error: null });
 
       try {
-        const result = await provider.sendMessage({ content, sessionId });
+        if (stream) {
+          // Streaming path — aggregates content deltas and tool calls into
+          // the assistant message as events arrive.
+          let accumulatedContent = "";
+          let toolCalls: ToolCall[] = [];
+          let executionId: string | undefined;
+          let finished = false;
 
-        if (!controller.signal.aborted) {
+          // Mark the message as streaming for UI indicators.
           dispatch({
             type: "UPDATE_MESSAGE",
             id: assistantMessage.id,
-            updates: {
-              content: result.message.content,
-              status: "complete",
-              executionId: result.executionId,
-            },
+            updates: { status: "streaming" },
           });
 
-          onFinish?.(result.message);
+          const generator = provider.sendMessageStream({ content, sessionId }, controller.signal);
+
+          try {
+            for await (const event of generator) {
+              if (controller.signal.aborted) break;
+
+              if (event.type === "content" && event.content) {
+                accumulatedContent += event.content;
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: assistantMessage.id,
+                  updates: { content: accumulatedContent },
+                });
+              } else if (event.type === "tool_start" && event.toolCallId) {
+                toolCalls = [
+                  ...toolCalls,
+                  {
+                    id: event.toolCallId,
+                    name: event.toolName ?? "",
+                    arguments: {},
+                    status: "running",
+                  },
+                ];
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: assistantMessage.id,
+                  updates: { toolCalls },
+                });
+              } else if (event.type === "tool_end" && event.toolCallId) {
+                const idx = toolCalls.findIndex((t) => t.id === event.toolCallId);
+                const base: ToolCall =
+                  idx >= 0
+                    ? toolCalls[idx]
+                    : {
+                        id: event.toolCallId,
+                        name: event.toolName ?? "",
+                        arguments: {},
+                        status: "running",
+                      };
+                const updated: ToolCall = {
+                  ...base,
+                  name: event.toolName || base.name,
+                  result: event.toolSummary,
+                  status: "complete",
+                };
+                toolCalls =
+                  idx >= 0
+                    ? toolCalls.map((t, i) => (i === idx ? updated : t))
+                    : [...toolCalls, updated];
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: assistantMessage.id,
+                  updates: { toolCalls },
+                });
+              } else if (event.type === "error") {
+                throw new Error(event.error ?? "Stream error");
+              } else if (event.type === "done") {
+                executionId = event.executionId;
+                finished = true;
+                break;
+              }
+            }
+          } catch (streamErr) {
+            if (!controller.signal.aborted) {
+              throw streamErr;
+            }
+          }
+
+          if (!controller.signal.aborted) {
+            const finalMessage: Message = {
+              ...assistantMessage,
+              content: accumulatedContent,
+              status: finished ? "complete" : "error",
+              toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+              executionId,
+            };
+            dispatch({
+              type: "UPDATE_MESSAGE",
+              id: assistantMessage.id,
+              updates: {
+                status: finalMessage.status,
+                executionId,
+              },
+            });
+            onFinish?.(finalMessage);
+          }
+        } else {
+          const result = await provider.sendMessage({ content, sessionId });
+
+          if (!controller.signal.aborted) {
+            dispatch({
+              type: "UPDATE_MESSAGE",
+              id: assistantMessage.id,
+              updates: {
+                content: result.message.content,
+                status: "complete",
+                executionId: result.executionId,
+              },
+            });
+
+            onFinish?.(result.message);
+          }
         }
       } catch (err) {
         if (!controller.signal.aborted) {
@@ -95,7 +198,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
         dispatch({ type: "SET_LOADING", isLoading: false });
       }
     },
-    [provider, sessionId, onError, onFinish, state.messages],
+    [provider, sessionId, onError, onFinish, stream, state.messages],
   );
 
   const retry = useCallback(

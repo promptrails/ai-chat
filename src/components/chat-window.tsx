@@ -19,6 +19,7 @@ export function ChatWindow({
   className,
   showAgentSteps = false,
   showApprovals = false,
+  showToolCalls = true,
   onError,
 }: ChatWindowProps & { onClose?: () => void }) {
   const chat = useChat({
@@ -50,7 +51,7 @@ export function ChatWindow({
         )}
 
         {chat.messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble key={message.id} message={message} showToolCalls={showToolCalls} />
         ))}
 
         {showAgentSteps && <AgentSteps steps={[]} />}
