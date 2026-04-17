@@ -98,6 +98,9 @@ function parseSSEData(data: string, event: string): StreamEvent | null {
     if (event === "content" && parsed.content) {
       return { type: "content", content: parsed.content };
     }
+    if (event === "execution" && parsed.execution_id) {
+      return { type: "execution", executionId: parsed.execution_id };
+    }
     if (event === "thinking" && typeof parsed.content === "string") {
       return { type: "thinking", thinking: parsed.content };
     }

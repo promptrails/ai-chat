@@ -32,6 +32,7 @@ export type StreamEventType =
   | "tool_start"
   | "tool_end"
   | "thinking"
+  | "execution"
   | "status"
   | "error"
   | "done";

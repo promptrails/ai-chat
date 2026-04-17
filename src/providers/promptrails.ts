@@ -43,39 +43,40 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
 
   const provider: ChatProvider = {
     async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
-      const sid = params.sessionId ?? (await ensureSession());
+      // The backend runs chat asynchronously — a non-streaming POST returns the
+      // user_message immediately with assistant_message=null and an
+      // execution_id. To honour the sendMessage contract (return the final
+      // assistant message), consume the SSE stream and collect the output.
+      let executionId: string | undefined;
+      let content = "";
+      let errored: string | undefined;
 
-      const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sid}/messages`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ content: params.content }),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        let msg = `HTTP ${response.status}`;
-        try {
-          const parsed = JSON.parse(body);
-          msg = parsed.error?.message || parsed.message || msg;
-        } catch {
-          // ignore
+      for await (const event of provider.sendMessageStream(params)) {
+        if (event.type === "execution" && event.executionId) {
+          executionId = event.executionId;
+        } else if (event.type === "content" && event.content) {
+          content += event.content;
+        } else if (event.type === "error") {
+          errored = event.error ?? "stream error";
+          break;
+        } else if (event.type === "done") {
+          break;
         }
-        throw new Error(msg);
       }
 
-      const json = await response.json();
-      const data = json.data;
-      const assistantMsg = data.assistant_message;
+      if (errored) {
+        throw new Error(errored);
+      }
 
       return {
         message: {
-          id: assistantMsg.id,
+          id: generateId(),
           role: "assistant",
-          content: assistantMsg.content,
+          content,
           status: "complete",
-          createdAt: new Date(assistantMsg.created_at),
+          createdAt: new Date(),
         },
-        executionId: data.execution_id,
+        executionId,
       };
     },
 

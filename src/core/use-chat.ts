@@ -127,10 +127,11 @@ export function useChat(options: UseChatOptions): UseChatReturn {
                   id: assistantMessage.id,
                   updates: { toolCalls },
                 });
+              } else if (event.type === "execution" && event.executionId) {
+                executionId = event.executionId;
               } else if (event.type === "error") {
                 throw new Error(event.error ?? "Stream error");
               } else if (event.type === "done") {
-                executionId = event.executionId;
                 finished = true;
                 break;
               }
