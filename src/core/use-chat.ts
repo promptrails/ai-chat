@@ -132,6 +132,20 @@ export function useChat(options: UseChatOptions): UseChatReturn {
               } else if (event.type === "error") {
                 throw new Error(event.error ?? "Stream error");
               } else if (event.type === "done") {
+                // Non-tool executions emit the full response only on done
+                // (no progressive content deltas). Fall back to the final
+                // output payload so those messages still render.
+                if (!accumulatedContent && event.output) {
+                  const out = event.output as { content?: unknown };
+                  if (typeof out.content === "string") {
+                    accumulatedContent = out.content;
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: assistantMessage.id,
+                      updates: { content: accumulatedContent },
+                    });
+                  }
+                }
                 finished = true;
                 break;
               }

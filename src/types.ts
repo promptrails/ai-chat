@@ -51,6 +51,8 @@ export interface StreamEvent {
   toolSummary?: string;
   /** thinking payload — intermediate reasoning text between tool rounds */
   thinking?: string;
+  /** done payload — final output produced by the execution */
+  output?: unknown;
 }
 
 export type ExecutionStatus =

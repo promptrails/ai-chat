@@ -60,6 +60,12 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
           errored = event.error ?? "stream error";
           break;
         } else if (event.type === "done") {
+          if (!content && event.output) {
+            const out = event.output as { content?: unknown };
+            if (typeof out.content === "string") {
+              content = out.content;
+            }
+          }
           break;
         }
       }

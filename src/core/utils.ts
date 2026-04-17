@@ -126,7 +126,7 @@ function parseSSEData(data: string, event: string): StreamEvent | null {
       };
     }
     if (event === "done") {
-      return { type: "done" };
+      return { type: "done", output: parsed.output };
     }
 
     // Fallback: treat as content if string-like
