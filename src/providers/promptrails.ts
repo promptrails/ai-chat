@@ -1,12 +1,45 @@
-import { PromptRails } from "@promptrails/sdk";
+import { PromptRails, type StreamEvent as SdkStreamEvent } from "@promptrails/sdk";
 import type { StreamEvent, Message, ApprovalRequest, ApprovalDecision } from "../types";
-import { generateId, parseSSEStream } from "../core/utils";
+import { generateId } from "../core/utils";
 import type {
   ChatProvider,
   ExecutionStatusResult,
   SendMessageParams,
   SendMessageResult,
 } from "./types";
+
+/**
+ * Translate a PromptRails SDK StreamEvent — a discriminated union — into the
+ * flat StreamEvent shape this package's consumers expect. The SDK field
+ * names differ per kind (id/name/summary on tool frames, message on error,
+ * content on thinking), so we can't just re-emit; this adapter is the
+ * single place that bridges the two shapes.
+ */
+function adaptSdkEvent(event: SdkStreamEvent): StreamEvent | null {
+  switch (event.type) {
+    case "execution":
+      return { type: "execution", executionId: event.executionId };
+    case "thinking":
+      return { type: "thinking", thinking: event.content };
+    case "tool_start":
+      return { type: "tool_start", toolCallId: event.id, toolName: event.name };
+    case "tool_end":
+      return {
+        type: "tool_end",
+        toolCallId: event.id,
+        toolName: event.name,
+        toolSummary: event.summary,
+      };
+    case "content":
+      return { type: "content", content: event.content };
+    case "done":
+      return { type: "done", output: event.output };
+    case "error":
+      return { type: "error", error: event.message };
+    default:
+      return null;
+  }
+}
 
 export interface PromptRailsProviderConfig {
   apiKey: string;
@@ -35,11 +68,6 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
     sessionId = session.id;
     return sessionId;
   }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-API-Key": apiKey,
-  };
 
   const provider: ChatProvider = {
     async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
@@ -92,25 +120,14 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
     ): AsyncGenerator<StreamEvent> {
       const sid = params.sessionId ?? (await ensureSession());
 
-      // SDK doesn't support streaming, use fetch directly
-      const response = await fetch(`${baseUrl}/api/v1/chat/sessions/${sid}/messages/stream`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": apiKey,
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify({
-          content: params.content,
-        }),
-        signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      for await (const event of client.chat.sendMessageStream(
+        sid,
+        { content: params.content },
+        { signal },
+      )) {
+        const adapted = adaptSdkEvent(event);
+        if (adapted) yield adapted;
       }
-
-      yield* parseSSEStream(response, signal);
     },
 
     async createSession(_agentId?: string, title?: string) {

@@ -1,6 +1,6 @@
 {
   "name": "@promptrails/ai-chat",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Embeddable AI chat widget + React hooks for building AI chat interfaces",
   "license": "MIT",
   "type": "module",
@@ -95,7 +95,7 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
-    "@promptrails/sdk": "^0.2.1",
+    "@promptrails/sdk": "^0.3.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0"
   }
