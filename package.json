@@ -95,7 +95,7 @@
     "vitest": "^2.1.0"
   },
   "dependencies": {
-    "@promptrails/sdk": "file:../javascript-sdk",
+    "@promptrails/sdk": "^0.9.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0"
   }
