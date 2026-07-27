@@ -1,6 +1,17 @@
-import { PromptRails, type StreamEvent as SdkStreamEvent } from "@promptrails/sdk";
-import type { StreamEvent, Message, ApprovalRequest, ApprovalDecision } from "../types";
+import {
+  type AgentExecution,
+  PromptRails,
+  type StreamEvent as SdkStreamEvent,
+} from "@promptrails/sdk";
 import { generateId } from "../core/utils";
+import type {
+  AgentStep,
+  ApprovalDecision,
+  ApprovalRequest,
+  ExecutionStatus,
+  Message,
+  StreamEvent,
+} from "../types";
 import type {
   ChatProvider,
   ExecutionStatusResult,
@@ -39,6 +50,54 @@ function adaptSdkEvent(event: SdkStreamEvent): StreamEvent | null {
     default:
       return null;
   }
+}
+
+/**
+ * API v2 executions form a tree — sub-agent delegations, handoffs and
+ * workflow-node runs hang off the root as `children`. Flatten that tree
+ * depth-first into the flat AgentStep[] the useAgent hook renders. Statuses
+ * (`waiting_approval`, `cancel_requested`, ...) already match ExecutionStatus.
+ */
+function flattenExecutionTree(nodes: AgentExecution[]): AgentStep[] {
+  const steps: AgentStep[] = [];
+  for (const node of nodes) {
+    steps.push({
+      id: node.id,
+      name: node.agent_id,
+      status: node.status as ExecutionStatus,
+      input: node.input,
+      output: node.output,
+      durationMs: node.duration_ms,
+      error: node.error || undefined,
+      startedAt: node.started_at ? new Date(node.started_at) : undefined,
+      completedAt: node.completed_at ? new Date(node.completed_at) : undefined,
+    });
+    if (node.children?.length) {
+      steps.push(...flattenExecutionTree(node.children));
+    }
+  }
+  return steps;
+}
+
+/**
+ * Map a v2 execution parked at (or resumed from) an approval gate into the
+ * package's flat ApprovalRequest shape. `status` reflects the local decision
+ * model: an inbox entry is "pending"; approve/deny return the resumed
+ * execution mapped to "approved"/"rejected".
+ */
+function toApprovalRequest(
+  exec: AgentExecution,
+  status: ApprovalRequest["status"],
+): ApprovalRequest {
+  return {
+    id: exec.id,
+    executionId: exec.id,
+    agentId: exec.agent_id,
+    payload: exec.input as Record<string, unknown>,
+    status,
+    approvalExpiresAt: exec.approval_expires_at ? new Date(exec.approval_expires_at) : undefined,
+    createdAt: new Date(exec.created_at),
+  };
 }
 
 export interface PromptRailsProviderConfig {
@@ -165,34 +224,23 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
     },
 
     async getExecutionStatus(executionId: string): Promise<ExecutionStatusResult> {
-      const result = await client.executions.get(executionId);
+      // v2: fetch the execution tree so sub-agent / workflow-node children
+      // surface as steps. The root is the tracked execution; its children are
+      // the sub-steps.
+      const result = await client.executions.tree(executionId);
       return {
         status: result.status as ExecutionStatusResult["status"],
         output: result.output as Record<string, unknown> | undefined,
         error: result.error || undefined,
+        steps: result.children?.length ? flattenExecutionTree(result.children) : undefined,
       };
     },
 
-    async listApprovals(filters?: { status?: string }): Promise<ApprovalRequest[]> {
-      const result = await client.approvals.list({
-        page: 1,
-        limit: 50,
-        ...(filters?.status ? { status: filters.status } : {}),
-      });
-
-      return result.data.map(
-        (item): ApprovalRequest => ({
-          id: item.id,
-          executionId: item.execution_id,
-          agentId: item.agent_id,
-          checkpointName: item.checkpoint_name,
-          payload: item.payload as Record<string, unknown>,
-          status: item.status as ApprovalRequest["status"],
-          reason: item.reason,
-          decidedAt: item.decided_at ? new Date(item.decided_at) : undefined,
-          createdAt: new Date(item.created_at),
-        }),
-      );
+    async listApprovals(_filters?: { status?: string }): Promise<ApprovalRequest[]> {
+      // v2: the approval inbox is the set of executions parked at
+      // `waiting_approval`; there is no separate approval status to filter by.
+      const result = await client.executions.approvalInbox({ page: 1, limit: 50 });
+      return result.data.map((exec) => toApprovalRequest(exec, "pending"));
     },
 
     async decideApproval(
@@ -200,22 +248,14 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
       decision: ApprovalDecision,
       reason?: string,
     ): Promise<ApprovalRequest> {
-      const data = await client.approvals.decide(id, {
-        decision,
-        reason,
-      });
+      // v2: approving/denying resumes the parked execution itself. `id` is the
+      // execution id.
+      const exec =
+        decision === "approved"
+          ? await client.executions.approve(id, reason ? { reason } : undefined)
+          : await client.executions.deny(id, reason ? { reason } : undefined);
 
-      return {
-        id: data.id,
-        executionId: data.execution_id,
-        agentId: data.agent_id,
-        checkpointName: data.checkpoint_name,
-        payload: data.payload as Record<string, unknown>,
-        status: data.status as ApprovalRequest["status"],
-        reason: data.reason,
-        decidedAt: data.decided_at ? new Date(data.decided_at) : undefined,
-        createdAt: new Date(data.created_at),
-      };
+      return toApprovalRequest(exec, decision === "approved" ? "approved" : "rejected");
     },
 
     disconnect() {

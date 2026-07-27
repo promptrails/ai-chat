@@ -7,6 +7,12 @@ export interface UseApprovalReturn {
   reject: (id: string, reason?: string) => Promise<void>;
   isDeciding: boolean;
   addApproval: (request: ApprovalRequest) => void;
+  /**
+   * Reload the pending-approval inbox from the provider. In API v2 this is the
+   * set of executions parked at `waiting_approval`
+   * (`provider.listApprovals`). No-op if the provider does not support it.
+   */
+  refresh: () => Promise<void>;
 }
 
 export function useApproval(options: UseApprovalOptions): UseApprovalReturn {
@@ -22,6 +28,15 @@ export function useApproval(options: UseApprovalOptions): UseApprovalReturn {
     },
     [onApprovalRequired],
   );
+
+  const refresh = useCallback(async () => {
+    if (!provider.listApprovals) return;
+    const inbox = await provider.listApprovals();
+    setPendingApprovals(inbox);
+    for (const request of inbox) {
+      onApprovalRequired?.(request);
+    }
+  }, [provider, onApprovalRequired]);
 
   const approve = useCallback(
     async (id: string, reason?: string) => {
@@ -61,5 +76,6 @@ export function useApproval(options: UseApprovalOptions): UseApprovalReturn {
     reject,
     isDeciding,
     addApproval,
+    refresh,
   };
 }
