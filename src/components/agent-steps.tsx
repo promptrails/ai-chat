@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { AgentStep, AgentStepsProps } from "../types";
 import { cn } from "../lib/cn";
+import type { AgentStep, AgentStepsProps } from "../types";
 
 export function AgentSteps({ steps, className, collapsible = true }: AgentStepsProps) {
   const [isOpen, setIsOpen] = useState(true);
@@ -77,7 +77,6 @@ function StepStatusIcon({ status }: { status: AgentStep["status"] }) {
         </svg>
       );
     case "failed":
-    case "rejected":
       return (
         <svg
           className="prc-h-4 prc-w-4 prc-text-red-500"

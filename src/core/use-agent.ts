@@ -10,7 +10,7 @@ export interface UseAgentReturn {
   cancel: () => void;
 }
 
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "rejected"]);
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 export function useAgent(options: UseAgentOptions): UseAgentReturn {
   const { provider, onStepUpdate, onComplete, onError, pollIntervalMs = 1000 } = options;
@@ -59,7 +59,10 @@ export function useAgent(options: UseAgentOptions): UseAgentReturn {
             }
           }
 
-          if (TERMINAL_STATUSES.has(result.status) || result.status === "awaiting_approval") {
+          // v2: a run parked at `waiting_approval` is not terminal, but polling
+          // should pause until it is approved/denied (and resumes on a fresh
+          // trackExecution call). Treat it like a stopping point here.
+          if (TERMINAL_STATUSES.has(result.status) || result.status === "waiting_approval") {
             cancel();
             if (result.steps) {
               onComplete?.(result.steps);

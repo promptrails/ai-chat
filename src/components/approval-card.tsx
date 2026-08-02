@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { ApprovalCardProps } from "../types";
 import { cn } from "../lib/cn";
+import type { ApprovalCardProps } from "../types";
 
 export function ApprovalCard({
   request,
@@ -34,9 +34,11 @@ export function ApprovalCard({
         <span className="prc-text-sm prc-font-semibold prc-text-amber-800">Approval Required</span>
       </div>
 
-      <p className="prc-mb-1 prc-text-xs prc-font-medium prc-text-amber-700">
-        {request.checkpointName}
-      </p>
+      {request.approvalExpiresAt && (
+        <p className="prc-mb-1 prc-text-xs prc-font-medium prc-text-amber-700">
+          Expires {request.approvalExpiresAt.toLocaleString()}
+        </p>
+      )}
 
       {Object.keys(request.payload).length > 0 && (
         <pre className="prc-mb-3 prc-max-h-24 prc-overflow-auto prc-rounded prc-bg-white prc-p-2 prc-text-xs prc-text-gray-700">

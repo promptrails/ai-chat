@@ -61,8 +61,10 @@ export type ExecutionStatus =
   | "completed"
   | "failed"
   | "cancelled"
-  | "awaiting_approval"
-  | "rejected";
+  // API v2: parked at an approval-gated tool call, resumes on approve/deny.
+  | "waiting_approval"
+  // API v2: cooperative cancel observed, run winding down before finalizing.
+  | "cancel_requested";
 
 // === Agent Step Types ===
 
@@ -82,15 +84,21 @@ export interface AgentStep {
 
 export type ApprovalDecision = "approved" | "rejected";
 
+/**
+ * API v2 approvals are execution-scoped: a run parked at an approval-gated
+ * tool call surfaces with `status: "pending"` (the underlying execution is
+ * `waiting_approval`) and, when the backend enforces a deadline,
+ * `approvalExpiresAt`. `id` and `executionId` are the same execution id —
+ * approving/denying resumes that execution. Who may decide is governed by the
+ * agent's approval policy on the server, not carried on the request.
+ */
 export interface ApprovalRequest {
   id: string;
   executionId: string;
   agentId?: string;
-  checkpointName: string;
   payload: Record<string, unknown>;
   status: "pending" | "approved" | "rejected";
-  reason?: string;
-  decidedAt?: Date;
+  approvalExpiresAt?: Date;
   createdAt: Date;
 }
 

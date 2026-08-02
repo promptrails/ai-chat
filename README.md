@@ -21,6 +21,18 @@ Works with **PromptRails**, **OpenAI**, or any custom SSE/WebSocket backend.
 npm install @promptrails/ai-chat
 ```
 
+> **Unreleased dependency:** The PromptRails provider targets **PromptRails
+> API v2** and depends on `@promptrails/sdk` `^0.9.0`, which is **not yet
+> published to npm**. The committed lockfile is therefore stale for this
+> package — it reconciles automatically once the SDK publishes and you run
+> `npm install`. To develop against the SDK before then, link the sibling
+> checkout locally (not committed):
+>
+> ```bash
+> cd ../javascript-sdk && npm install && npm run build
+> cd ../ai-chat && npm link ../javascript-sdk
+> ```
+
 ## Quick Start
 
 ### 1. Script Tag (No React Needed)
@@ -218,7 +230,9 @@ const {
 
 ### `useApproval(options)`
 
-Human-in-the-loop approval flow.
+Human-in-the-loop approval flow. In PromptRails API v2 an approval is an
+execution parked at `waiting_approval`; `refresh()` loads that inbox, and
+`approve`/`reject` resume the parked execution.
 
 ```ts
 const {
@@ -227,6 +241,7 @@ const {
   reject,           // (id: string, reason?: string) => Promise<void>
   isDeciding,       // boolean
   addApproval,      // (request: ApprovalRequest) => void
+  refresh,          // () => Promise<void> — reload the waiting_approval inbox
 } = useApproval({ provider, onApprovalRequired, onApprovalDecided });
 ```
 
