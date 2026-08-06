@@ -13,6 +13,13 @@
   const safe = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
   const cleanBase = (value) => String(value ?? "").trim().replace(/\/+$/, "");
   const plainText = (value) => String(value ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const visibleUserText = (value) => {
+    const raw = String(value ?? "");
+    const customerMessage = raw.match(
+      /(?:^|\n)<MUSTERI_MESAJI>\s*\n?([\s\S]*?)\n?<\/MUSTERI_MESAJI>(?:\n|$)/,
+    );
+    return plainText(customerMessage?.[1] ?? raw);
+  };
   const mediaUrl = (value) => {
     try {
       const parsed = new URL(String(value ?? "").trim(), location.href);
@@ -233,7 +240,11 @@
         this.chatId = typeof saved.chatId === "string" && /^[0-9A-Za-z]{27}$/.test(saved.chatId) ? saved.chatId : "";
         this.resumeToken = typeof saved.resumeToken === "string" && saved.resumeToken.length >= 32 ? saved.resumeToken : "";
         if (!this.resumeToken) this.chatId = "";
-        this.messages = Array.isArray(saved.messages) ? saved.messages.slice(-20) : [];
+        this.messages = Array.isArray(saved.messages)
+          ? saved.messages.slice(-20).map((message) =>
+            message?.role === "user" ? { ...message, text: visibleUserText(message.text) } : message,
+          )
+          : [];
         localStorage.setItem(this.storageKey, JSON.stringify({ chatId: this.chatId, resumeToken: this.resumeToken, messages: this.messages, lastActivityAt }));
         sessionStorage.removeItem(this.storageKey);
         this.paintMessages();
@@ -265,7 +276,7 @@
           return;
         }
         this.messages = rows.filter((row) => row?.role === "user" || row?.role === "assistant").map((row) => {
-          if (row.role === "user") return { role: "user", text: plainText(row.content) };
+          if (row.role === "user") return { role: "user", text: visibleUserText(row.content) };
           return { role: "assistant", ...this.normalizeAnswer({ output: row.content, executionId: row.metadata?.execution_id }) };
         }).slice(-20);
         this.persist();

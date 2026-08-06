@@ -55,6 +55,70 @@ describe("PromptRails ecommerce widget", () => {
     expect(globalThis.localStorage.getItem(storageKey)).toBeNull();
   });
 
+  it("hides the page context envelope when restoring locally persisted messages", () => {
+    const storageKey = "promptrails-shop-widget:workspace-1:agent-1";
+    globalThis.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        chatId: "a".repeat(27),
+        resumeToken: "r".repeat(32),
+        messages: [
+          {
+            role: "user",
+            text: [
+              "<SAYFA_BAGLAMI>",
+              '{"baslik":"Sipariş ve Kargo Takibi — MİRA","yol":"/siparis-takip"}',
+              "</SAYFA_BAGLAMI>",
+              "<MUSTERI_MESAJI>",
+              "Siparişim nerede?",
+              "</MUSTERI_MESAJI>",
+            ].join("\n"),
+          },
+        ],
+        lastActivityAt: Date.now(),
+      }),
+    );
+
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("workspace-id", "workspace-1");
+    widget.setAttribute("agent-id", "agent-1");
+    document.body.appendChild(widget);
+
+    expect(widget.messages[0].text).toBe("Siparişim nerede?");
+    expect(widget.shadowRoot?.querySelector(".message.user p")?.textContent).toBe(
+      "Siparişim nerede?",
+    );
+  });
+
+  it("hides the page context envelope when hydrating messages from the API", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("api-url", "https://api.example.com");
+    widget.setAttribute("agent-id", "agent-1");
+    widget.setAttribute("api-key", "browser-key");
+    document.body.appendChild(widget);
+    widget.chatId = "a".repeat(27);
+    widget.resumeToken = "r".repeat(32);
+    widget.runtimeRequest = vi.fn().mockResolvedValue({
+      data: [
+        {
+          role: "user",
+          content: [
+            "<SAYFA_BAGLAMI>",
+            '{"baslik":"Sipariş ve Kargo Takibi — MİRA","yol":"/siparis-takip"}',
+            "</SAYFA_BAGLAMI>",
+            "<MUSTERI_MESAJI>",
+            "elif@mira.example MIRA-2026-1042",
+            "</MUSTERI_MESAJI>",
+          ].join("\n"),
+        },
+      ],
+    });
+
+    await widget.hydrateSession();
+
+    expect(widget.messages[0].text).toBe("elif@mira.example MIRA-2026-1042");
+  });
+
   it("rejects non-http product image protocols", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);
