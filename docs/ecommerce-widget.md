@@ -3,7 +3,7 @@
 `dist/ecommerce.global.js` registers `<promptrails-shop-assistant>`, a
 framework-independent Web Component for storefront sales assistants. It uses
 an open Shadow DOM so the widget cannot accidentally leak styles into the host
-page. The bundle is vanilla JavaScript and does not include React.
+page. The bundle is vanilla JavaScript and does not include React
 
 ## Install
 
