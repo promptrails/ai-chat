@@ -8,6 +8,12 @@ export type {
 export { createPromptRailsProvider } from "./promptrails";
 export type { PromptRailsProviderConfig } from "./promptrails";
 
+export { createPromptRailsBrowserProvider } from "./promptrails-browser";
+export type {
+  PromptRailsBrowserProvider,
+  PromptRailsBrowserProviderConfig,
+} from "./promptrails-browser";
+
 export { createOpenAIProvider } from "./openai";
 export type { OpenAIProviderConfig } from "./openai";
 

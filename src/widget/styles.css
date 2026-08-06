@@ -9,7 +9,7 @@
   --prc-bubble-size: 56px;
   --prc-panel-width: 380px;
   --prc-panel-height: 600px;
-  --prc-z-index: 9999;
+  --prc-z-index: 2147483000;
 
   all: initial;
   font-family: var(--prc-font-family);
@@ -77,7 +77,7 @@
   z-index: var(--prc-z-index);
   width: var(--prc-panel-width);
   height: var(--prc-panel-height);
-  max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
   background: var(--prc-bg-color);
   border-radius: 16px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
@@ -155,6 +155,38 @@
   color: var(--prc-text-color);
 }
 
+.prc-widget-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.prc-widget-header-new,
+.prc-widget-header-close {
+  width: 32px;
+  height: 32px;
+}
+
+.prc-widget-header-new {
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--prc-text-secondary);
+  cursor: pointer;
+  font: 300 24px/1 var(--prc-font-family);
+}
+
+.prc-widget-header-new:hover,
+.prc-widget-header-close:hover {
+  background: color-mix(in srgb, var(--prc-primary-color) 8%, transparent);
+  color: var(--prc-text-color);
+}
+
+.prc-widget-header-new:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 /* Messages area */
 .prc-widget-messages {
   flex: 1;
@@ -207,6 +239,34 @@
   background: #f3f4f6;
   color: var(--prc-text-color);
   border-bottom-left-radius: 4px;
+}
+
+.prc-widget-feedback {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  color: var(--prc-text-secondary);
+  font-size: 10px;
+}
+
+.prc-widget-feedback button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--prc-border-color);
+  border-radius: 50%;
+  background: var(--prc-bg-color);
+  color: var(--prc-text-secondary);
+  cursor: pointer;
+}
+
+.prc-widget-feedback button[aria-pressed="true"] {
+  border-color: var(--prc-primary-color);
+  background: color-mix(in srgb, var(--prc-primary-color) 10%, var(--prc-bg-color));
+  color: var(--prc-primary-color);
 }
 
 /* Typing indicator */
@@ -313,7 +373,7 @@
 @media (max-width: 480px) {
   .prc-widget-panel {
     width: calc(100vw - 16px);
-    height: calc(100vh - 80px);
+    height: calc(100dvh - 16px);
     max-height: none;
     bottom: 8px;
     right: 8px;
@@ -323,5 +383,14 @@
 
   .prc-widget-panel--bottom-left {
     right: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prc-widget-bubble,
+  .prc-widget-panel,
+  .prc-widget-typing-dot {
+    animation: none;
+    transition: none;
   }
 }

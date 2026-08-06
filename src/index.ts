@@ -20,13 +20,20 @@ export {
 } from "./components";
 
 // Providers
-export { createPromptRailsProvider, createOpenAIProvider, createCustomProvider } from "./providers";
+export {
+  createPromptRailsProvider,
+  createPromptRailsBrowserProvider,
+  createOpenAIProvider,
+  createCustomProvider,
+} from "./providers";
 export type {
   ChatProvider,
   SendMessageParams,
   SendMessageResult,
   ExecutionStatusResult,
   PromptRailsProviderConfig,
+  PromptRailsBrowserProvider,
+  PromptRailsBrowserProviderConfig,
   OpenAIProviderConfig,
   CustomProviderConfig,
 } from "./providers";

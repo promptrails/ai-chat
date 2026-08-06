@@ -226,6 +226,16 @@ export interface WidgetConfig {
   title?: string;
   placeholder?: string;
   primaryColor?: string;
+  workspaceId?: string;
+  /** Persist only the resumable chat reference. Defaults to true. */
+  persistSession?: boolean;
+  /** Local inactivity lifetime in seconds. Defaults to 24 hours. */
+  sessionMaxAge?: number;
+  /** Optional stylesheet loaded inside the widget's ShadowRoot. */
+  stylesheetUrl?: string;
+  newSessionLabel?: string;
+  feedbackLabel?: string;
+  errorMessage?: string;
   bubbleIcon?: string;
   greeting?: string;
   width?: number;

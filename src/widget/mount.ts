@@ -25,7 +25,7 @@ export function mount(config: WidgetConfig): void {
   container.style.width = "0";
   container.style.height = "0";
   container.style.overflow = "visible";
-  container.style.zIndex = "9999";
+  container.style.zIndex = String(config.zIndex ?? 2147483000);
   document.body.appendChild(container);
 
   // Create shadow DOM
@@ -50,6 +50,13 @@ export function mount(config: WidgetConfig): void {
   }
 
   shadow.appendChild(styleEl);
+
+  if (config.stylesheetUrl && /^(https?:\/\/|\/|\.\.\/|\.\/)/.test(config.stylesheetUrl)) {
+    const stylesheet = document.createElement("link");
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = config.stylesheetUrl;
+    shadow.appendChild(stylesheet);
+  }
 
   // Create React mount point
   const mountPoint = document.createElement("div");

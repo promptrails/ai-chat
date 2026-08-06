@@ -1,6 +1,6 @@
 {
   "name": "@promptrails/ai-chat",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Embeddable AI chat widget + React hooks for building AI chat interfaces",
   "license": "MIT",
   "type": "module",
@@ -49,6 +49,7 @@
       }
     },
     "./widget": "./dist/widget.global.js",
+    "./ecommerce-widget": "./dist/ecommerce.global.js",
     "./styles.css": "./dist/styles.css"
   },
   "files": [
@@ -58,10 +59,11 @@
   ],
   "sideEffects": [
     "./dist/widget.global.js",
+    "./dist/ecommerce.global.js",
     "./dist/styles.css"
   ],
   "scripts": {
-    "build": "tsup && tsup --config tsup.widget.config.ts",
+    "build": "node scripts/widget-styles.mjs && tsup && tsup --config tsup.widget.config.ts && tsup --config tsup.ecommerce.config.ts && tailwindcss -i ./src/styles.css -o ./dist/styles.css --minify",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -82,9 +84,10 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.28.1",
     "eslint": "^10.0.3",
-    "happy-dom": "^16.6.0",
-    "postcss": "^8.4.49",
+    "happy-dom": "^20.11.1",
+    "postcss": "^8.5.25",
     "prettier": "^3.8.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
@@ -92,11 +95,14 @@
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.57.1",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@promptrails/sdk": "^0.9.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }

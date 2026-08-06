@@ -13,7 +13,9 @@ const { executions } = vi.hoisted(() => ({
 }));
 
 vi.mock("@promptrails/sdk", () => ({
-  PromptRails: vi.fn().mockImplementation(() => ({ executions })),
+  PromptRails: vi.fn(function PromptRailsMock() {
+    return { executions };
+  }),
 }));
 
 import { createPromptRailsProvider } from "../../providers/promptrails";

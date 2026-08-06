@@ -3,7 +3,7 @@ import type { ChatProvider } from "../providers/types";
 import type { WidgetConfig } from "../types";
 import { createCustomProvider } from "../providers/custom";
 import { createOpenAIProvider } from "../providers/openai";
-import { createPromptRailsProvider } from "../providers/promptrails";
+import { createPromptRailsBrowserProvider } from "../providers/promptrails-browser";
 import { Bubble } from "./bubble";
 import { Panel } from "./panel";
 
@@ -19,10 +19,14 @@ export function Widget({ config }: WidgetProps) {
 
     switch (type) {
       case "promptrails":
-        return createPromptRailsProvider({
+        return createPromptRailsBrowserProvider({
           apiKey: (rest.apiKey as string) ?? "",
           agentId: (rest.agentId as string) ?? "",
           baseUrl: rest.baseUrl as string | undefined,
+          workspaceId: config.workspaceId,
+          title: config.title,
+          persistSession: config.persistSession,
+          sessionMaxAge: config.sessionMaxAge,
         });
 
       case "openai":

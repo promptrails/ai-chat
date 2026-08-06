@@ -91,15 +91,22 @@ function renderSimpleMarkdown(text: string): string {
   html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
 
   // Links [text](url)
-  html = html.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer" class="prc-text-primary prc-underline">$1</a>',
-  );
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label: string, href: string) => {
+    const safeHref = sanitizeLinkHref(href);
+    return safeHref
+      ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="prc-text-primary prc-underline">${label}</a>`
+      : label;
+  });
 
   // Line breaks
   html = html.replace(/\n/g, "<br />");
 
   return html;
+}
+
+function sanitizeLinkHref(value: string): string {
+  const candidate = value.trim();
+  return /^(https?:\/\/|mailto:|tel:|\/|#)/i.test(candidate) ? candidate : "";
 }
 
 function escapeHtml(text: string): string {
