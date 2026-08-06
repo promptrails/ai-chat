@@ -167,6 +167,80 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.textContent).not.toContain("productId");
   });
 
+  it("shows customer-safe tool progress and completion copy", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute(
+      "tool-labels",
+      JSON.stringify({ knowledge_search: "Mağaza rehberinde arıyorum…" }),
+    );
+    document.body.appendChild(widget);
+    widget.ready = true;
+    let progressText = "";
+    let completedText = "";
+    widget.runtime = {
+      async *sendMessageStream() {
+        yield { type: "tool_start", toolCallId: "call-1", toolName: "knowledge_search" };
+        progressText = widget.shadowRoot.querySelector(".typing")?.textContent || "";
+        yield { type: "tool_end", toolCallId: "call-1", toolName: "knowledge_search" };
+        completedText = widget.shadowRoot.querySelector(".typing")?.textContent || "";
+        yield { type: "done", output: { message: "Yanıt" } };
+      },
+    };
+
+    await widget.send("İade süresi nedir?");
+
+    expect(progressText).toContain("Mağaza rehberinde arıyorum…");
+    expect(progressText).not.toContain("knowledge_search");
+    expect(completedText).toContain("Bilgileri buldum, yanıtınızı hazırlıyorum…");
+  });
+
+  it("uses generic copy for unknown tools without exposing their names", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    widget.startToolActivity("call-1", "private_internal_tool");
+
+    const activity = widget.shadowRoot.querySelector(".typing");
+    expect(activity?.textContent).toContain("İlgili bilgileri kontrol ediyorum…");
+    expect(activity?.textContent).not.toContain("private_internal_tool");
+  });
+
+  it("closes before product navigation and keeps action labels concise", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.catalog = [{ id: "product-1", slug: "dress", name: "A very long dress name", category: "Dresses", price: 100 }];
+    widget.open();
+    widget.messages = [{
+      role: "assistant",
+      text: "Pick",
+      products: [{ ...widget.catalog[0], canView: true, viewLabel: widget.labels.view }],
+    }];
+    widget.paintMessages();
+
+    widget.shadowRoot.querySelector("[data-view]").click();
+
+    expect(widget.shadowRoot.querySelector("[data-view]")?.textContent).toBe("İncele");
+    expect(widget.shadowRoot.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+  });
+
+  it("recovers the cart button when the host reports a failure", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.catalog = [{ id: "product-1", slug: "dress", name: "Dress", category: "Dresses", price: 100 }];
+    widget.messages = [{ role: "assistant", text: "Pick", products: [{ ...widget.catalog[0], canAdd: true }] }];
+    widget.paintMessages();
+
+    const button = widget.shadowRoot.querySelector("[data-add]");
+    button.click();
+    expect(button.textContent).toBe("Ekleniyor…");
+
+    globalThis.dispatchEvent(
+      new globalThis.CustomEvent("promptrails:cart-failed", { detail: { productId: "product-1" } }),
+    );
+    expect(button.textContent).toBe("Sepete ekle");
+    expect(button.disabled).toBe(false);
+  });
+
   it("exposes imperative controls, translated labels and CSP nonce", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("locale", "en-US");

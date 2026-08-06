@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -34,6 +34,9 @@ Pin a release in production:
   accent-color="#121212"
   persist-session="true"
   session-max-age="86400"
+  show-tool-activity="true"
+  close-on-product-view="true"
+  tool-labels='{"catalog_search":"Searching the collection…","knowledge_search":"Checking the store guide…"}'
 ></promptrails-shop-assistant>
 ```
 
@@ -116,7 +119,7 @@ promptrails-shop-assistant {
 }
 ```
 
-Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, and `status-card`. Use `style-nonce` under a nonce-based CSP.
+Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, `status-card`, and `activity`. Use `style-nonce` under a nonce-based CSP.
 
 For a fully custom theme, set `stylesheet-url` to an HTTPS or same-site CSS
 file. It is loaded inside the Shadow DOM after the built-in styles, so scoped
@@ -134,16 +137,24 @@ document.addEventListener("promptrails:product-view", (event) => {
 });
 
 document.addEventListener("promptrails:cart-add", async (event) => {
-  await cart.add(event.detail);
-  document.dispatchEvent(new CustomEvent("promptrails:cart-confirmed", {
-    detail: { productId: event.detail.productId },
-  }));
+  try {
+    await cart.add(event.detail);
+    document.dispatchEvent(new CustomEvent("promptrails:cart-confirmed", {
+      detail: { productId: event.detail.productId },
+    }));
+  } catch {
+    document.dispatchEvent(new CustomEvent("promptrails:cart-failed", {
+      detail: { productId: event.detail.productId },
+    }));
+  }
 });
 
 document.addEventListener("promptrails:session-new", () => {
   analytics.track("assistant_session_started");
 });
 ```
+
+Product views close the panel before emitting `promptrails:product-view` by default so client-side navigation is visible. Set `close-on-product-view="false"` if the host intentionally keeps the assistant open. Cart buttons recover when the host emits `promptrails:cart-failed`; a ten-second confirmation timeout also prevents a permanently disabled button.
 
 The component also exposes a typed imperative API:
 
@@ -157,6 +168,27 @@ await assistant.newSession();
 ```
 
 Use `locale="en-US"` for the built-in English dictionary or pass a JSON `translations` attribute to override individual labels. Product cards support size, color, and quantity selection before emitting `promptrails:cart-add`.
+
+## Tool activity
+
+The widget consumes PromptRails `tool_start` and `tool_end` stream events and shows customer-safe progress copy while the assistant works. Raw tool arguments, results, and private tool names are never rendered. Unknown tools use a generic localized message.
+
+Use `tool-labels` to provide brand-specific copy keyed by tool name:
+
+```html
+<promptrails-shop-assistant
+  show-tool-activity="true"
+  tool-labels='{
+    "catalog_search":"Searching the collection…",
+    "order_tracking":"Checking your shipment…",
+    "knowledge_search":"Checking the store guide…"
+  }'
+></promptrails-shop-assistant>
+```
+
+Set `show-tool-activity="false"` to retain the generic typing indicator without tool-specific updates. The React adapter exposes the same options as `showToolActivity` and `toolLabels`.
+
+On mobile Safari the widget keeps composer and variant controls at a minimum 16px font size, preventing iOS from leaving the page auto-zoomed after focus. The fixed panel uses safe-area insets and does not rely on a competing viewport width declaration.
 
 Event payloads never execute model-provided JavaScript or URLs. Product names,
 prices, images, and slugs are resolved from the host catalog by ID.

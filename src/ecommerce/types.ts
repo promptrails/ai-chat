@@ -4,6 +4,9 @@ export interface ShopAssistantContext {
   [key: string]: unknown;
 }
 
+/** Customer-safe progress copy keyed by the server-side tool name. */
+export type ToolActivityLabels = Record<string, string>;
+
 export interface ProductViewDetail {
   productId: string;
   slug: string;

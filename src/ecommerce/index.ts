@@ -6,4 +6,5 @@ export type {
   PromptRailsShopAssistantElement,
   ShopAssistantContext,
   ShopAssistantEventMap,
+  ToolActivityLabels,
 } from "./types";

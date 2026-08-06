@@ -10,6 +10,7 @@ Works with **PromptRails**, **OpenAI**, or any custom SSE/WebSocket backend.
 - **React Components** — `<ChatWindow />`, `<MessageBubble />`, `<AgentSteps />`, `<ApprovalCard />`
 - **Embeddable Widget** — One `<script>` tag, no React needed. Shadow DOM isolation.
 - **Ecommerce Widget** — Browser-safe PromptRails sessions, product cards, persistence, feedback, and host events.
+- **Customer-safe tool activity** — Localized progress during catalog, knowledge, order, or custom tool calls without exposing arguments or results.
 - **Multi-Provider** — PromptRails, OpenAI, or any custom backend
 - **Agent Step Tracking** — Real-time multi-step execution timeline
 - **Human-in-the-Loop** — Built-in approval flow UI
@@ -42,7 +43,7 @@ key in a storefront.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"
@@ -58,7 +59,7 @@ key in a storefront.
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
@@ -104,7 +105,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/ecommerce.global.js"
   defer
 ></script>
 

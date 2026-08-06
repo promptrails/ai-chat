@@ -16,7 +16,8 @@ test("corporate docs launches the credential-free ecommerce demo", async ({ page
 test("widget remains inside the mobile viewport", async ({ page }) => {
   await page.goto("/#demo");
   await page.getByRole("button", { name: "Launch Widget on This Page" }).click();
-  const panel = page.locator("promptrails-shop-assistant").locator(".panel");
+  const assistant = page.locator("promptrails-shop-assistant");
+  const panel = assistant.locator(".panel");
   await expect(panel).toBeVisible();
   const box = await panel.boundingBox();
   const viewport = page.viewportSize();
@@ -26,4 +27,10 @@ test("widget remains inside the mobile viewport", async ({ page }) => {
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width);
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
+  if (viewport!.width <= 560) {
+    const composerFontSize = await assistant.locator("textarea").evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize),
+    );
+    expect(composerFontSize).toBeGreaterThanOrEqual(16);
+  }
 });

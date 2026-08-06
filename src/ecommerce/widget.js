@@ -40,13 +40,25 @@ import { normalizeChatUI } from "../ui/protocol";
       return value.split("|").map(plainText).filter(Boolean).slice(0, 5);
     }
   };
+  const stringMap = (value) => {
+    try {
+      const parsed = JSON.parse(value || "{}");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+      return Object.fromEntries(Object.entries(parsed).slice(0, 50).map(([key, label]) => [
+        plainText(key).slice(0, 120),
+        plainText(label).slice(0, 120),
+      ]).filter(([key, label]) => key && label));
+    } catch {
+      return {};
+    }
+  };
   const stylesheetUrl = (value) => {
     const candidate = String(value ?? "").trim();
     return /^(https?:\/\/|\/|\.\.\/|\.\/)/.test(candidate) ? candidate : "";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "tool-labels", "close-on-product-view", "translations"];
     }
 
     constructor() {
@@ -60,8 +72,11 @@ import { normalizeChatUI } from "../ui/protocol";
       this.opened = false;
       this.busy = false;
       this.ready = false;
+      this.activeTools = new Map();
+      this.cartTimers = new Map();
       this.onWindowKey = (event) => this.handleWindowKey(event);
       this.onCartConfirmed = (event) => this.cartConfirmed(event);
+      this.onCartFailed = (event) => this.cartFailed(event);
       this.onConnectivity = () => {
         const offline = this.root.querySelector(".offline");
         if (offline) offline.hidden = navigator.onLine;
@@ -77,6 +92,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.loadCatalog().finally(() => { this.ready = true; });
       window.addEventListener("keydown", this.onWindowKey);
       window.addEventListener("promptrails:cart-confirmed", this.onCartConfirmed);
+      window.addEventListener("promptrails:cart-failed", this.onCartFailed);
       window.addEventListener("online", this.onConnectivity);
       window.addEventListener("offline", this.onConnectivity);
     }
@@ -84,8 +100,11 @@ import { normalizeChatUI } from "../ui/protocol";
     disconnectedCallback() {
       window.removeEventListener("keydown", this.onWindowKey);
       window.removeEventListener("promptrails:cart-confirmed", this.onCartConfirmed);
+      window.removeEventListener("promptrails:cart-failed", this.onCartFailed);
       window.removeEventListener("online", this.onConnectivity);
       window.removeEventListener("offline", this.onConnectivity);
+      this.cartTimers.forEach((timer) => window.clearTimeout(timer));
+      this.cartTimers.clear();
       if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
     }
 
@@ -126,6 +145,9 @@ import { normalizeChatUI } from "../ui/protocol";
         styleNonce: this.getAttribute("style-nonce")?.trim() || "",
         persistSession: this.getAttribute("persist-session") !== "false",
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
+        showToolActivity: this.getAttribute("show-tool-activity") !== "false",
+        toolLabels: stringMap(this.getAttribute("tool-labels")),
+        closeOnProductView: this.getAttribute("close-on-product-view") !== "false",
       };
     }
 
@@ -134,19 +156,21 @@ import { normalizeChatUI } from "../ui/protocol";
         open: "Open chat", close: "Minimize chat", newChat: "Start a new chat", online: "Online",
         welcomeTitle: "Let's find it together.", message: "Your message", send: "Send message",
         thinking: "is reviewing options", poweredBy: "Powered by PromptRails", demo: "Demo mode",
-        view: "View", add: "Add to cart", adding: "Adding…", added: "Added ✓",
+        view: "View", add: "Add to cart", adding: "Adding…", added: "Added ✓", cartFailed: "Try again",
         size: "Size", color: "Color", quantity: "Quantity", shipping: "Shipment", order: "Order",
         feedback: "Was this helpful?", helpful: "Helpful", notHelpful: "Not helpful",
         offline: "You are offline. Check your connection.", retry: "Try again",
+        toolWorking: "Checking the relevant information…", toolComplete: "Information found. Preparing your answer…",
       };
       const turkish = {
         open: "Sohbeti aç", close: "Sohbeti küçült", newChat: "Yeni sohbet başlat", online: "Çevrimiçi",
         welcomeTitle: "Birlikte bulalım.", message: "Mesajınız", send: "Mesajı gönder",
         thinking: "seçkiyi inceliyor", poweredBy: "PromptRails ile çalışır", demo: "Demo modu",
-        view: "İncele", add: "Sepete ekle", adding: "Ekleniyor…", added: "Sepete eklendi ✓",
+        view: "İncele", add: "Sepete ekle", adding: "Ekleniyor…", added: "Sepete eklendi ✓", cartFailed: "Tekrar dene",
         size: "Beden", color: "Renk", quantity: "Adet", shipping: "Kargo takibi", order: "Sipariş",
         feedback: "Bu öneri yardımcı oldu mu?", helpful: "Yardımcı oldu", notHelpful: "Yardımcı olmadı",
         offline: "Çevrimdışısınız. Bağlantınızı kontrol edin.", retry: "Tekrar deneyelim",
+        toolWorking: "İlgili bilgileri kontrol ediyorum…", toolComplete: "Bilgileri buldum, yanıtınızı hazırlıyorum…",
       };
       let custom = {};
       try { custom = JSON.parse(this.getAttribute("translations") || "{}"); } catch { /* invalid overrides are ignored */ }
@@ -194,7 +218,7 @@ import { normalizeChatUI } from "../ui/protocol";
             <div class="quick initial">${quickPrompts.map((prompt) => `<button type="button">${safe(prompt)}</button>`).join("")}</div>
             <div class="messages"></div>
             <div class="offline" ${navigator.onLine ? "hidden" : ""}>${safe(labels.offline)}</div>
-            <div class="typing" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em></div>
+            <div class="typing" part="activity" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em></div>
           </div>
           <form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
@@ -225,14 +249,23 @@ import { normalizeChatUI } from "../ui/protocol";
       };
       this.root.querySelectorAll(".initial button").forEach((button) => { button.onclick = () => this.send(button.textContent); });
       this.root.querySelectorAll("[data-quick]").forEach((button) => { button.onclick = () => this.send(button.dataset.quick); });
-      this.root.querySelectorAll("[data-view]").forEach((button) => { button.onclick = () => this.emit("promptrails:product-view", { slug: button.dataset.view, productId: button.dataset.productId }); });
+      this.root.querySelectorAll("[data-view]").forEach((button) => { button.onclick = () => {
+        if (this.config.closeOnProductView) this.toggle(false);
+        this.emit("promptrails:product-view", { slug: button.dataset.view, productId: button.dataset.productId });
+      }; });
       this.root.querySelectorAll("[data-add]").forEach((button) => { button.onclick = () => {
         const product = this.catalog.find((item) => item.id === button.dataset.add);
         if (!product) return;
         button.disabled = true;
+        button.dataset.idleLabel = button.textContent || this.labels.add;
         button.textContent = this.labels.adding;
         const selected = this.selectedVariants?.[product.id] || {};
         this.emit("promptrails:cart-add", { productId: product.id, slug: product.slug, size: selected.size || product.sizes?.[0], color: selected.color || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
+        window.clearTimeout(this.cartTimers.get(product.id));
+        this.cartTimers.set(product.id, window.setTimeout(() => {
+          this.cartFailed({ detail: { productId: product.id } });
+          this.emit("promptrails:error", { code: "cart_confirmation_timeout", productId: product.id });
+        }, 10_000));
       }; });
       this.root.querySelectorAll("[data-variant]").forEach((select) => { select.onchange = () => {
         this.selectedVariants ||= {};
@@ -372,6 +405,7 @@ import { normalizeChatUI } from "../ui/protocol";
       await this.hydrationPromise;
       this.messages.push({ role: "user", text: content });
       this.busy = true;
+      this.activeTools.clear();
       this.paintMessages();
       this.setTyping(true);
       try {
@@ -381,6 +415,7 @@ import { normalizeChatUI } from "../ui/protocol";
         this.messages.push({ role: "assistant", text: this.errorMessage(error), products: [], quickReplies: [this.labels.retry] });
       } finally {
         this.busy = false;
+        this.activeTools.clear();
         this.setTyping(false);
         this.persist();
         this.paintMessages();
@@ -398,6 +433,8 @@ import { normalizeChatUI } from "../ui/protocol";
         for await (const event of this.runtime.sendMessageStream({ content: customerMessage, context })) {
           if (event.type === "error") throw new Error(event.error || "Agent could not respond.");
           if (event.type === "execution") executionId = event.executionId || "";
+          if (event.type === "tool_start") this.startToolActivity(event.toolCallId, event.toolName);
+          if (event.type === "tool_end") this.endToolActivity(event.toolCallId, event.toolName);
           if (event.type === "ui") ui = event.ui;
           if (event.type === "done") finalOutput = event.output;
         }
@@ -436,8 +473,8 @@ import { normalizeChatUI } from "../ui/protocol";
           reason: plainText(attributes.reason ?? attributes.neden ?? "Size uygun bir seçenek."),
           canView: !genericUI || Boolean(viewAction),
           canAdd: !genericUI || Boolean(addAction),
-          viewLabel: plainText(viewAction?.label ?? this.labels.view),
-          addLabel: plainText(addAction?.label ?? this.labels.add),
+          viewLabel: this.labels.view,
+          addLabel: this.labels.add,
         } : null;
       }).filter(Boolean).slice(0, 3);
       return {
@@ -483,16 +520,52 @@ import { normalizeChatUI } from "../ui/protocol";
       return "Şu anda stil danışmanımıza ulaşamıyoruz. Lütfen biraz sonra yeniden deneyin.";
     }
 
-    setTyping(visible) {
+    startToolActivity(id, name) {
+      if (!this.config.showToolActivity) return;
+      const key = String(id || name || `tool-${this.activeTools.size + 1}`);
+      this.activeTools.set(key, String(name || ""));
+      this.setTyping(true, this.config.toolLabels[name] || this.labels.toolWorking, "running");
+    }
+
+    endToolActivity(id, name) {
+      if (!this.config.showToolActivity) return;
+      this.activeTools.delete(String(id || name || ""));
+      const remaining = [...this.activeTools.values()].at(-1);
+      if (remaining !== undefined) {
+        this.setTyping(true, this.config.toolLabels[remaining] || this.labels.toolWorking, "running");
+        return;
+      }
+      this.setTyping(true, this.labels.toolComplete, "complete");
+    }
+
+    setTyping(visible, text = "", state = "thinking") {
       const element = this.root.querySelector(".typing");
-      if (element) element.hidden = !visible;
+      if (element) {
+        element.hidden = !visible;
+        element.classList.toggle("is-complete", visible && state === "complete");
+        const label = element.querySelector("em");
+        if (label) label.textContent = text || `${this.config.assistantName} ${this.labels.thinking}`;
+      }
       this.scroll();
     }
 
     cartConfirmed(event) {
       const id = event.detail?.productId;
+      window.clearTimeout(this.cartTimers.get(id));
+      this.cartTimers.delete(id);
       const button = this.root.querySelector(`[data-add="${CSS.escape(String(id))}"]`);
       if (button) { button.textContent = this.labels.added; button.disabled = false; }
+    }
+
+    cartFailed(event) {
+      const id = event.detail?.productId;
+      window.clearTimeout(this.cartTimers.get(id));
+      this.cartTimers.delete(id);
+      const button = this.root.querySelector(`[data-add="${CSS.escape(String(id))}"]`);
+      if (button) {
+        button.textContent = button.dataset.idleLabel || this.labels.cartFailed;
+        button.disabled = false;
+      }
     }
 
     async submitFeedback(messageIndex, value) {
@@ -636,6 +709,8 @@ import { normalizeChatUI } from "../ui/protocol";
         .status-card h3 { font: 400 16px/1.2 Georgia, serif; }
         .status-card p, .status-card time { color: var(--pt-chat-muted, #68655f); font-size: 10px; }
         .offline { margin: 8px 0; border: 1px solid #d8a52f; background: #fff8df; padding: 9px; color: #59420c; font-size: 10px; }
+        .typing.is-complete span { display: none; }
+        .typing.is-complete::before { content: "✓"; display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid currentColor; border-radius: 50%; color: #54825a; font-size: 10px; }
         button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid color-mix(in srgb, var(--pt-accent) 70%, white); outline-offset: 2px; }
         .composer textarea { min-height: 47px; padding-block: 14px; }
         .feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 7px; color: #77736c; font-size: 9px; }
@@ -651,12 +726,13 @@ import { normalizeChatUI } from "../ui/protocol";
             height: calc(100dvh - 16px) !important;
             max-height: calc(100dvh - 16px) !important;
           }
+          .composer textarea, .variants select { font-size: 16px; }
         }
       `;
     }
 
     styles(accent) {
-      return `:host{--pt-accent:var(--pt-chat-accent,${safe(accent)});position:fixed;right:var(--pt-chat-right,24px);bottom:var(--pt-chat-bottom,24px);z-index:var(--pt-chat-z-index,2147483000);font-family:var(--pt-chat-font-family,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);color:var(--pt-chat-text,#171715);line-height:1.45;contain:style}:host *{box-sizing:border-box}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.launcher{width:230px;min-height:64px;border:0;border-radius:2px;background:var(--pt-accent);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 14px;box-shadow:0 15px 42px rgba(0,0,0,.25);cursor:pointer;text-align:left}.launcher-mark,.avatar,.mini-avatar{display:grid;place-items:center;border:1px solid currentColor;font-family:Georgia,serif}.launcher-mark{width:36px;height:36px;font-size:20px}.launcher span:nth-child(2){display:grid;flex:1}.launcher strong{font:600 12px/1.3 inherit;letter-spacing:.02em}.launcher small{font-size:10px;color:rgba(255,255,255,.65)}.launcher i{font-style:normal;font-size:20px}.panel{position:absolute;right:0;bottom:0;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#f7f5f0;border:1px solid #d7d2c9;box-shadow:0 24px 70px rgba(0,0,0,.27);display:none;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden}.panel.is-open{display:grid}.panel header{background:var(--pt-accent);color:#fff;min-height:72px;padding:13px 17px;display:flex;justify-content:space-between;align-items:center}.panel header>div{display:flex;gap:12px;align-items:center}.avatar{width:38px;height:38px;font-size:20px}.panel header p{display:grid;margin:0}.panel header strong{font-family:Georgia,serif;font-size:16px;font-weight:400}.panel header small{font-size:10px;color:rgba(255,255,255,.68);margin-top:3px}.panel header small i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#87bd8b;margin-right:4px}.close{border:0;background:transparent;color:#fff;font-size:29px;line-height:1;cursor:pointer}.conversation{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:22px 18px 14px;scrollbar-width:thin}.conversation.has-messages{padding-top:8px}.conversation.has-messages .welcome,.conversation.has-messages .quick.initial{display:none}.welcome{text-align:center;border-bottom:1px solid #dfdbd3;padding:4px 15px 20px}.welcome-mark{display:grid;place-items:center;margin:0 auto 11px;border:1px solid #171715;width:40px;height:40px;font:22px Georgia,serif}.welcome h2{font:400 27px/1.1 Georgia,serif;margin:0 0 9px}.welcome p{font-size:12px;color:#65635f;margin:0}.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.quick.initial{justify-content:center;padding:4px 0 15px}.quick button{border:1px solid #cbc6bd;background:#fff;border-radius:20px;padding:8px 11px;font:500 10px inherit;cursor:pointer;color:#3c3b38}.quick button:hover{border-color:#171715}.message{margin:12px 0}.message>p,.message.assistant>div>p{margin:0;padding:12px 14px;font-size:13px;white-space:pre-line}.message.user{display:flex;justify-content:flex-end}.message.user>p{background:var(--pt-accent);color:#fff;max-width:82%;border-radius:13px 13px 2px 13px}.message.assistant{display:grid;grid-template-columns:25px 1fr;gap:8px;align-items:start}.message.assistant>div>p{background:#fff;border:1px solid #e0dcd4;border-radius:2px 13px 13px 13px}.mini-avatar{width:25px;height:25px;font:13px Georgia,serif}.recommendations-list{display:grid;gap:10px;margin-top:10px}.recommendation{background:#fff;border:1px solid #dcd7ce;padding:10px;display:grid;grid-template-columns:86px 1fr;gap:9px}.recommendation-image{width:86px;height:112px;background-repeat:no-repeat;background-color:#ddd6cc}.recommendation h3{font:400 16px/1.15 Georgia,serif;margin:3px 0}.recommendation small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#77736c}.recommendation strong{font-size:11px}.recommendation div:nth-child(2)>p{font-size:10px;color:#68655f;margin:7px 0 0}.recommendation button{grid-column:1/-1;min-height:34px;text-transform:uppercase;font:600 9px inherit;letter-spacing:.08em;cursor:pointer}.recommendation .view{background:#fff;border:1px solid #171715}.recommendation .add{background:#171715;color:#fff;border:1px solid #171715}.typing{display:flex;align-items:center;gap:4px;margin:16px 0 10px 33px}.typing span{width:6px;height:6px;border-radius:50%;background:#777;animation:pulse 1.1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}.typing em{font:normal 9px inherit;color:#777;margin-left:5px}.typing[hidden]{display:none}@keyframes pulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.composer{margin:0 14px 10px;border:1px solid #c9c4bb;background:#fff;display:grid;grid-template-columns:1fr 41px;align-items:end}.composer textarea{resize:none;border:0;outline:0;min-height:51px;max-height:90px;padding:16px 12px;background:transparent;font:13px inherit}.composer button{width:34px;height:34px;margin:0 6px 8px 0;border:0;border-radius:50%;background:var(--pt-accent);color:#fff;font-size:19px;cursor:pointer}.panel>footer{text-align:center;padding:0 10px 10px;color:#969188;text-transform:uppercase;font-size:8px;letter-spacing:.13em}.panel>footer span{color:#171715;font-size:11px}@media(max-width:560px){:host{right:12px;bottom:12px}.launcher{width:58px;height:58px;min-height:58px;padding:10px;border-radius:50%}.launcher span:nth-child(2),.launcher i{display:none}.launcher-mark{border:0}.panel{position:fixed!important;inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))!important;width:calc(100vw - 16px)!important;min-width:0!important;max-width:calc(100vw - 16px)!important;height:calc(100dvh - 16px)!important;max-height:calc(100dvh - 16px)!important;border:1px solid #d7d2c9}.conversation{padding-left:14px;padding-right:14px}}@media(max-height:620px){.panel header{min-height:60px;padding-top:9px;padding-bottom:9px}.conversation{padding-top:10px}.welcome-mark{display:none}.welcome h2{font-size:23px}.welcome{padding-top:0;padding-bottom:12px}.quick.initial{padding-bottom:8px}.composer{margin-bottom:7px}.panel>footer{padding-bottom:7px}}:host{--pt-chat-background:#f7f5f0;--pt-chat-surface:#fff;--pt-chat-border:#d7d2c9;--pt-chat-muted:#68655f;--pt-chat-radius:0px}.panel{background:var(--pt-chat-background);border-color:var(--pt-chat-border);border-radius:var(--pt-chat-radius)}.message.assistant>div>p,.recommendation,.quick button,.composer{background:var(--pt-chat-surface)}.message.assistant>div>p,.recommendation,.quick button,.composer{border-color:var(--pt-chat-border)}.recommendation div:nth-child(2)>p,.welcome p{color:var(--pt-chat-muted)}.recommendation .add{background:var(--pt-chat-text,#171715);border-color:var(--pt-chat-text,#171715);color:var(--pt-chat-surface,#fff)}@media(prefers-reduced-motion:reduce){.typing span{animation:none}}`;
+      return `:host{--pt-accent:var(--pt-chat-accent,${safe(accent)});position:fixed;right:var(--pt-chat-right,24px);bottom:var(--pt-chat-bottom,24px);z-index:var(--pt-chat-z-index,2147483000);font-family:var(--pt-chat-font-family,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);color:var(--pt-chat-text,#171715);line-height:1.45;contain:style;-webkit-text-size-adjust:100%;text-size-adjust:100%}:host *{box-sizing:border-box;min-width:0}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.launcher{width:230px;min-height:64px;border:0;border-radius:2px;background:var(--pt-accent);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 14px;box-shadow:0 15px 42px rgba(0,0,0,.25);cursor:pointer;text-align:left}.launcher-mark,.avatar,.mini-avatar{display:grid;place-items:center;border:1px solid currentColor;font-family:Georgia,serif}.launcher-mark{width:36px;height:36px;font-size:20px}.launcher span:nth-child(2){display:grid;flex:1}.launcher strong{font:600 12px/1.3 inherit;letter-spacing:.02em}.launcher small{font-size:10px;color:rgba(255,255,255,.65)}.launcher i{font-style:normal;font-size:20px}.panel{position:absolute;right:0;bottom:0;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#f7f5f0;border:1px solid #d7d2c9;box-shadow:0 24px 70px rgba(0,0,0,.27);display:none;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden}.panel.is-open{display:grid}.panel header{background:var(--pt-accent);color:#fff;min-height:72px;padding:13px 17px;display:flex;justify-content:space-between;align-items:center}.panel header>div{display:flex;gap:12px;align-items:center}.avatar{width:38px;height:38px;font-size:20px}.panel header p{display:grid;margin:0}.panel header strong{font-family:Georgia,serif;font-size:16px;font-weight:400}.panel header small{font-size:10px;color:rgba(255,255,255,.68);margin-top:3px}.panel header small i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#87bd8b;margin-right:4px}.close{border:0;background:transparent;color:#fff;font-size:29px;line-height:1;cursor:pointer}.conversation{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:22px 18px 14px;scrollbar-width:thin}.conversation.has-messages{padding-top:8px}.conversation.has-messages .welcome,.conversation.has-messages .quick.initial{display:none}.welcome{text-align:center;border-bottom:1px solid #dfdbd3;padding:4px 15px 20px}.welcome-mark{display:grid;place-items:center;margin:0 auto 11px;border:1px solid #171715;width:40px;height:40px;font:22px Georgia,serif}.welcome h2{font:400 27px/1.1 Georgia,serif;margin:0 0 9px}.welcome p{font-size:12px;color:#65635f;margin:0}.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.quick.initial{justify-content:center;padding:4px 0 15px}.quick button{border:1px solid #cbc6bd;background:#fff;border-radius:20px;padding:8px 11px;font:500 10px inherit;cursor:pointer;color:#3c3b38}.quick button:hover{border-color:#171715}.message{margin:12px 0;overflow-wrap:anywhere}.message>p,.message.assistant>div>p{margin:0;padding:12px 14px;font-size:13px;white-space:pre-line}.message.user{display:flex;justify-content:flex-end}.message.user>p{background:var(--pt-accent);color:#fff;max-width:82%;border-radius:13px 13px 2px 13px}.message.assistant{display:grid;grid-template-columns:25px minmax(0,1fr);gap:8px;align-items:start}.message.assistant>div>p{background:#fff;border:1px solid #e0dcd4;border-radius:2px 13px 13px 13px}.mini-avatar{width:25px;height:25px;font:13px Georgia,serif}.recommendations-list{display:grid;gap:10px;margin-top:10px}.recommendation{background:#fff;border:1px solid #dcd7ce;padding:10px;display:grid;grid-template-columns:86px minmax(0,1fr);gap:9px}.recommendation-image{width:86px;height:112px;background-repeat:no-repeat;background-color:#ddd6cc}.recommendation h3{font:400 16px/1.15 Georgia,serif;margin:3px 0}.recommendation small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#77736c}.recommendation strong{font-size:11px}.recommendation div:nth-child(2)>p{font-size:10px;color:#68655f;margin:7px 0 0}.recommendation button{grid-column:1/-1;min-height:34px;text-transform:uppercase;font:600 9px inherit;letter-spacing:.08em;cursor:pointer}.recommendation .view{background:#fff;border:1px solid #171715}.recommendation .add{background:#171715;color:#fff;border:1px solid #171715}.typing{display:flex;align-items:center;gap:4px;margin:16px 0 10px 33px}.typing span{width:6px;height:6px;border-radius:50%;background:#777;animation:pulse 1.1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}.typing em{font:normal 9px inherit;color:#777;margin-left:5px}.typing[hidden]{display:none}@keyframes pulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.composer{margin:0 14px 10px;border:1px solid #c9c4bb;background:#fff;display:grid;grid-template-columns:minmax(0,1fr) 41px;align-items:end}.composer textarea{width:100%;resize:none;border:0;outline:0;min-height:51px;max-height:90px;padding:16px 12px;background:transparent;font:13px inherit}.composer button{width:34px;height:34px;margin:0 6px 8px 0;border:0;border-radius:50%;background:var(--pt-accent);color:#fff;font-size:19px;cursor:pointer}.panel>footer{text-align:center;padding:0 10px 10px;color:#969188;text-transform:uppercase;font-size:8px;letter-spacing:.13em}.panel>footer span{color:#171715;font-size:11px}@media(max-width:560px){:host{right:12px;bottom:12px}.launcher{width:58px;height:58px;min-height:58px;padding:10px;border-radius:50%}.launcher span:nth-child(2),.launcher i{display:none}.launcher-mark{border:0}.panel{position:fixed!important;inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))!important;width:calc(100vw - 16px)!important;min-width:0!important;max-width:calc(100vw - 16px)!important;height:calc(100dvh - 16px)!important;max-height:calc(100dvh - 16px)!important;border:1px solid #d7d2c9}.conversation{padding-left:14px;padding-right:14px}.composer textarea,.variants select{font-size:16px}}@media(max-height:620px){.panel header{min-height:60px;padding-top:9px;padding-bottom:9px}.conversation{padding-top:10px}.welcome-mark{display:none}.welcome h2{font-size:23px}.welcome{padding-top:0;padding-bottom:12px}.quick.initial{padding-bottom:8px}.composer{margin-bottom:7px}.panel>footer{padding-bottom:7px}}:host{--pt-chat-background:#f7f5f0;--pt-chat-surface:#fff;--pt-chat-border:#d7d2c9;--pt-chat-muted:#68655f;--pt-chat-radius:0px}.panel{background:var(--pt-chat-background);border-color:var(--pt-chat-border);border-radius:var(--pt-chat-radius)}.message.assistant>div>p,.recommendation,.quick button,.composer{background:var(--pt-chat-surface)}.message.assistant>div>p,.recommendation,.quick button,.composer{border-color:var(--pt-chat-border)}.recommendation div:nth-child(2)>p,.welcome p{color:var(--pt-chat-muted)}.recommendation .add{background:var(--pt-chat-text,#171715);border-color:var(--pt-chat-text,#171715);color:var(--pt-chat-surface,#fff)}@media(prefers-reduced-motion:reduce){.typing span{animation:none}}`;
     }
   }
 

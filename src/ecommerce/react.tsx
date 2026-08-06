@@ -1,7 +1,11 @@
 import "./widget.js";
 
 import { createElement, forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import type { PromptRailsShopAssistantElement, ShopAssistantContext } from "./types";
+import type {
+  PromptRailsShopAssistantElement,
+  ShopAssistantContext,
+  ToolActivityLabels,
+} from "./types";
 
 export interface ShopAssistantProps {
   apiUrl?: string;
@@ -15,6 +19,9 @@ export interface ShopAssistantProps {
   accentColor?: string;
   persistSession?: boolean;
   sessionMaxAge?: number;
+  showToolActivity?: boolean;
+  toolLabels?: ToolActivityLabels;
+  closeOnProductView?: boolean;
   quickPrompts?: string[];
   translations?: Record<string, string>;
   context?: ShopAssistantContext;
@@ -34,6 +41,9 @@ const attributes = [
   ["accentColor", "accent-color"],
   ["persistSession", "persist-session"],
   ["sessionMaxAge", "session-max-age"],
+  ["showToolActivity", "show-tool-activity"],
+  ["toolLabels", "tool-labels"],
+  ["closeOnProductView", "close-on-product-view"],
   ["quickPrompts", "quick-prompts"],
   ["translations", "translations"],
 ] as const;
