@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>@promptrails/ai-chat — AI Chat Widget + React Hooks</title>
-  <meta name="description" content="Embeddable AI chat widget and React hooks for building AI-powered chat interfaces. Supports PromptRails, OpenAI, and custom backends." />
+  <meta name="description" content="Browser-safe PromptRails chat and ecommerce widgets plus React hooks for building AI-powered interfaces." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -638,7 +638,7 @@
   <section class="hero">
     <span class="hero-badge">Open Source</span>
     <h1>AI Chat for<br /><span class="gradient-text">Any Website</span></h1>
-    <p>Drop-in chat widget + React hooks for building AI-powered interfaces. Works with PromptRails, OpenAI, or any custom backend.</p>
+    <p>Browser-safe chat and ecommerce widgets plus React hooks for building AI-powered interfaces.</p>
     <div class="hero-actions">
       <a href="#demo" class="btn btn-primary">Try the Demo</a>
       <a href="#usage" class="btn btn-secondary">View Docs</a>
@@ -676,7 +676,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </div>
         <h3>Embeddable Widget</h3>
-        <p>One <code>&lt;script&gt;</code> tag — no React, no build tools needed. Floating chat bubble with Shadow DOM isolation.</p>
+        <p>One pinned <code>&lt;script&gt;</code> tag — no React or build tools. Shadow DOM isolation, token refresh, resumable sessions, and feedback.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
@@ -697,7 +697,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
         </div>
         <h3>Multi-Provider</h3>
-        <p>PromptRails, OpenAI, or any custom SSE/WebSocket backend. Switch providers without changing your UI code.</p>
+        <p>PromptRails browser runtime, trusted PromptRails SDK, OpenAI, or a custom SSE/WebSocket backend. Keep provider secrets server-side.</p>
       </div>
     </div>
   </section>
@@ -723,25 +723,30 @@
           </div>
           <pre id="script-code"><span class="code-comment">&lt;!-- Add to any website — no React needed --&gt;</span>
 <span class="code-tag">&lt;script</span>
-  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"</span>
+  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"</span>
   <span class="code-attr">data-provider</span>=<span class="code-string">"promptrails"</span>
-  <span class="code-attr">data-api-key</span>=<span class="code-string">"pr_your_api_key"</span>
-  <span class="code-attr">data-base-url</span>=<span class="code-string">"https://api.example.com"</span>
-  <span class="code-attr">data-agent-id</span>=<span class="code-string">"your_agent_id"</span>
+  <span class="code-attr">data-api-key</span>=<span class="code-string">"BROWSER_ONLY_CHAT_KEY"</span>
+  <span class="code-attr">data-base-url</span>=<span class="code-string">"https://api.promptrails.ai"</span>
+  <span class="code-attr">data-agent-id</span>=<span class="code-string">"AGENT_KSUID"</span>
+  <span class="code-attr">data-workspace-id</span>=<span class="code-string">"WORKSPACE_KSUID"</span>
   <span class="code-attr">data-title</span>=<span class="code-string">"Support Chat"</span>
   <span class="code-attr">data-greeting</span>=<span class="code-string">"Hi! How can I help you today?"</span>
   <span class="code-attr">data-position</span>=<span class="code-string">"bottom-right"</span>
   <span class="code-attr">data-primary-color</span>=<span class="code-string">"#2563eb"</span>
+  <span class="code-attr">data-persist-session</span>=<span class="code-string">"true"</span>
+  <span class="code-attr">data-session-max-age</span>=<span class="code-string">"86400"</span>
 <span class="code-tag">&gt;&lt;/script&gt;</span>
 
 <span class="code-comment">&lt;!-- Or initialize programmatically --&gt;</span>
 <span class="code-tag">&lt;script&gt;</span>
   PromptRailsChat.<span class="code-keyword">init</span>({
     provider: {
-      type: <span class="code-string">"openai"</span>,
-      apiKey: <span class="code-string">"sk-..."</span>,
-      model: <span class="code-string">"gpt-4o-mini"</span>,
+      type: <span class="code-string">"promptrails"</span>,
+      apiKey: <span class="code-string">"BROWSER_ONLY_CHAT_KEY"</span>,
+      agentId: <span class="code-string">"AGENT_KSUID"</span>,
+      baseUrl: <span class="code-string">"https://api.promptrails.ai"</span>,
     },
+    workspaceId: <span class="code-string">"WORKSPACE_KSUID"</span>,
     title: <span class="code-string">"AI Assistant"</span>,
   });
 <span class="code-tag">&lt;/script&gt;</span></pre>
@@ -756,13 +761,14 @@
             <span>App.tsx</span>
             <button onclick="copyCode('component-code')">Copy</button>
           </div>
-          <pre id="component-code"><span class="code-keyword">import</span> { ChatWindow, createPromptRailsProvider } <span class="code-keyword">from</span> <span class="code-string">"@promptrails/ai-chat"</span>;
+          <pre id="component-code"><span class="code-keyword">import</span> { ChatWindow, createPromptRailsBrowserProvider } <span class="code-keyword">from</span> <span class="code-string">"@promptrails/ai-chat"</span>;
 <span class="code-keyword">import</span> <span class="code-string">"@promptrails/ai-chat/styles.css"</span>;
 
-<span class="code-keyword">const</span> provider = <span class="code-keyword">createPromptRailsProvider</span>({
-  baseUrl: <span class="code-string">"https://api.example.com"</span>,
-  apiKey: <span class="code-string">"pr_your_api_key"</span>,
-  agentId: <span class="code-string">"your_agent_id"</span>,
+<span class="code-keyword">const</span> provider = <span class="code-keyword">createPromptRailsBrowserProvider</span>({
+  baseUrl: <span class="code-string">"https://api.promptrails.ai"</span>,
+  apiKey: <span class="code-string">"BROWSER_ONLY_CHAT_KEY"</span>,
+  agentId: <span class="code-string">"AGENT_KSUID"</span>,
+  workspaceId: <span class="code-string">"WORKSPACE_KSUID"</span>,
 });
 
 <span class="code-keyword">export default function</span> App() {
@@ -786,11 +792,11 @@
             <span>CustomChat.tsx</span>
             <button onclick="copyCode('hooks-code')">Copy</button>
           </div>
-          <pre id="hooks-code"><span class="code-keyword">import</span> { useChat, createOpenAIProvider } <span class="code-keyword">from</span> <span class="code-string">"@promptrails/ai-chat"</span>;
+          <pre id="hooks-code"><span class="code-keyword">import</span> { useChat, createCustomProvider } <span class="code-keyword">from</span> <span class="code-string">"@promptrails/ai-chat"</span>;
 
-<span class="code-keyword">const</span> provider = <span class="code-keyword">createOpenAIProvider</span>({
-  apiKey: <span class="code-string">"sk-..."</span>,
-  model: <span class="code-string">"gpt-4o-mini"</span>,
+<span class="code-keyword">const</span> provider = <span class="code-keyword">createCustomProvider</span>({
+  sendUrl: <span class="code-string">"/api/chat"</span>,
+  streamUrl: <span class="code-string">"/api/chat/stream"</span>,
 });
 
 <span class="code-keyword">export default function</span> CustomChat() {
@@ -835,8 +841,6 @@
           <label for="demo-provider">Provider</label>
           <select id="demo-provider" onchange="updateDemo()">
             <option value="promptrails">PromptRails</option>
-            <option value="openai">OpenAI</option>
-            <option value="custom">Custom</option>
           </select>
         </div>
         <div class="form-group">
@@ -847,12 +851,12 @@
           </select>
         </div>
         <div class="form-group">
-          <label for="demo-apikey">API Key</label>
-          <input id="demo-apikey" type="text" placeholder="pr_..." oninput="updateDemo()" />
+          <label for="demo-apikey">Browser-only Chat Key</label>
+          <input id="demo-apikey" type="text" placeholder="Restricted public key" oninput="updateDemo()" />
         </div>
         <div class="form-group" id="baseurl-group">
           <label for="demo-baseurl">Base URL</label>
-          <input id="demo-baseurl" type="text" placeholder="https://api.example.com" oninput="updateDemo()" />
+          <input id="demo-baseurl" type="text" placeholder="https://api.promptrails.ai" oninput="updateDemo()" />
         </div>
         <div class="form-group" id="agent-id-group">
           <label for="demo-agentid">Agent ID</label>
@@ -960,7 +964,7 @@
   <section class="cta">
     <div class="cta-card">
       <h2>Ready to add AI chat to your app?</h2>
-      <p>Get started in under 5 minutes. No configuration needed for the widget.</p>
+      <p>Start with a browser-only key restricted to chat, exact origins, and an explicit agent allowlist.</p>
       <div class="cta-actions">
         <a href="https://github.com/promptrails/ai-chat" class="btn btn-primary" target="_blank">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -979,6 +983,8 @@
       <a href="https://github.com/promptrails/ai-chat" target="_blank">GitHub</a>
       <a href="https://www.npmjs.com/package/@promptrails/ai-chat" target="_blank">npm</a>
       <a href="https://promptrails.com" target="_blank">PromptRails</a>
+      <a href="browser-widget.md">Browser widget guide</a>
+      <a href="ecommerce-widget.md">Ecommerce widget guide</a>
     </div>
     <p>MIT License &middot; Built by <a href="https://promptrails.com" target="_blank">PromptRails</a></p>
   </footer>
@@ -1007,8 +1013,8 @@
     function updateDemo() {
       const provider = document.getElementById('demo-provider').value;
       const position = document.getElementById('demo-position').value;
-      const apiKey = document.getElementById('demo-apikey').value || 'YOUR_API_KEY';
-      const baseUrl = document.getElementById('demo-baseurl').value || 'https://api.example.com';
+      const apiKey = document.getElementById('demo-apikey').value || 'BROWSER_ONLY_CHAT_KEY';
+      const baseUrl = document.getElementById('demo-baseurl').value || 'https://api.promptrails.ai';
       const agentId = document.getElementById('demo-agentid').value || 'YOUR_AGENT_ID';
       const title = document.getElementById('demo-title').value || 'AI Assistant';
       const color = document.getElementById('demo-color').value;
@@ -1039,7 +1045,7 @@
       }
 
       const code = `<script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"
 ${attrs}
 ><\/script>`;
 
@@ -1085,7 +1091,7 @@ ${attrs}
   </script>
 
   <!-- Widget script for live demo -->
-  <script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.3.2/dist/widget.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"></script>
 
 </body>
 </html>

@@ -9,6 +9,7 @@ Works with **PromptRails**, **OpenAI**, or any custom SSE/WebSocket backend.
 - **React Hooks** — `useChat()`, `useStreaming()`, `useAgent()`, `useApproval()`
 - **React Components** — `<ChatWindow />`, `<MessageBubble />`, `<AgentSteps />`, `<ApprovalCard />`
 - **Embeddable Widget** — One `<script>` tag, no React needed. Shadow DOM isolation.
+- **Ecommerce Widget** — Browser-safe PromptRails sessions, product cards, persistence, feedback, and host events.
 - **Multi-Provider** — PromptRails, OpenAI, or any custom backend
 - **Agent Step Tracking** — Real-time multi-step execution timeline
 - **Human-in-the-Loop** — Built-in approval flow UI
@@ -21,17 +22,10 @@ Works with **PromptRails**, **OpenAI**, or any custom SSE/WebSocket backend.
 npm install @promptrails/ai-chat
 ```
 
-> **Unreleased dependency:** The PromptRails provider targets **PromptRails
-> API v2** and depends on `@promptrails/sdk` `^0.9.0`, which is **not yet
-> published to npm**. The committed lockfile is therefore stale for this
-> package — it reconciles automatically once the SDK publishes and you run
-> `npm install`. To develop against the SDK before then, link the sibling
-> checkout locally (not committed):
->
-> ```bash
-> cd ../javascript-sdk && npm install && npm run build
-> cd ../ai-chat && npm link ../javascript-sdk
-> ```
+The PromptRails provider targets **PromptRails API v2** and uses the published
+`@promptrails/sdk` package. Browser widgets use the separate browser-safe chat
+runtime described below; never expose a provider credential or management API
+key in a storefront.
 
 ## Quick Start
 
@@ -39,33 +33,48 @@ npm install @promptrails/ai-chat
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"
   data-provider="promptrails"
-  data-api-key="pr_your_api_key"
-  data-agent-id="your_agent_id"
+  data-base-url="https://api.promptrails.ai"
+  data-api-key="BROWSER_ONLY_CHAT_KEY"
+  data-agent-id="AGENT_KSUID"
+  data-workspace-id="WORKSPACE_KSUID"
   data-title="Support Chat"
   data-greeting="Hi! How can I help you today?"
+  data-persist-session="true"
+  data-session-max-age="86400"
 ></script>
 ```
 
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
-      type: "openai",
-      apiKey: "sk-...",
-      model: "gpt-4o-mini",
+      type: "promptrails",
+      apiKey: "BROWSER_ONLY_CHAT_KEY",
+      agentId: "AGENT_KSUID",
+      baseUrl: "https://api.promptrails.ai",
     },
+    workspaceId: "WORKSPACE_KSUID",
     title: "AI Assistant",
     position: "bottom-right",
     primaryColor: "#2563eb",
     greeting: "Hi! How can I help?",
+    persistSession: true,
+    sessionMaxAge: 86400,
   });
 </script>
 ```
+
+The generic widget and ecommerce widget use the same browser-safe runtime. The
+generic bundle renders text chat; the ecommerce bundle additionally understands
+the allowlisted product UI contract and emits storefront events. Both refresh
+the 15-minute runtime bearer automatically, verify persisted history with a
+session resume secret, expose a new-session action, and support thumbs up/down
+feedback. See [the generic browser widget guide](docs/browser-widget.md).
 
 Widget API:
 
@@ -76,15 +85,48 @@ PromptRailsChat.toggle();  // Toggle open/close
 PromptRailsChat.destroy(); // Remove from DOM
 ```
 
+### Ecommerce storefront widget
+
+The ecommerce bundle is a lightweight vanilla Web Component. It does not ship
+React and talks directly to PromptRails' public browser chat runtime:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/ecommerce.global.js"
+  defer
+></script>
+
+<promptrails-shop-assistant
+  api-url="https://api.promptrails.ai"
+  workspace-id="WORKSPACE_KSUID"
+  agent-id="AGENT_KSUID"
+  api-key="BROWSER_ONLY_CHAT_KEY"
+  catalog-url="/api/catalog"
+  brand="Acme"
+  assistant-name="Acme Alışveriş Asistanı"
+  assistant-mark="A"
+  persist-session="true"
+  session-max-age="86400"
+></promptrails-shop-assistant>
+```
+
+The publishable key must have exactly `chat:write`, an agent allowlist, exact
+browser origins, and `browser_only=true`. The widget exchanges it for a
+15-minute memory-only bearer, refreshes automatically, and resumes only one
+session with an origin/key-bound resume secret. See
+[the ecommerce widget guide](docs/ecommerce-widget.md) for theming, events,
+catalog shape, and security boundaries.
+
 ### 2. React Component
 
 ```tsx
-import { ChatWindow, createPromptRailsProvider } from "@promptrails/ai-chat";
+import { ChatWindow, createPromptRailsBrowserProvider } from "@promptrails/ai-chat";
 import "@promptrails/ai-chat/styles.css";
 
-const provider = createPromptRailsProvider({
-  apiKey: "pr_your_api_key",
-  agentId: "your_agent_id",
+const provider = createPromptRailsBrowserProvider({
+  apiKey: "BROWSER_ONLY_CHAT_KEY",
+  agentId: "AGENT_KSUID",
+  workspaceId: "WORKSPACE_KSUID",
 });
 
 export default function App() {
@@ -103,11 +145,11 @@ export default function App() {
 ### 3. React Hooks (Build Your Own UI)
 
 ```tsx
-import { useChat, createOpenAIProvider } from "@promptrails/ai-chat";
+import { useChat, createCustomProvider } from "@promptrails/ai-chat";
 
-const provider = createOpenAIProvider({
-  apiKey: "sk-...",
-  model: "gpt-4o-mini",
+const provider = createCustomProvider({
+  sendUrl: "/api/chat",
+  streamUrl: "/api/chat/stream",
 });
 
 export default function CustomChat() {
@@ -151,13 +193,35 @@ const provider = createPromptRailsProvider({
 
 Supports: streaming, sessions, agent execution tracking, approvals.
 
+`createPromptRailsProvider` uses the full PromptRails SDK and belongs in trusted
+server code or applications whose credential is not shipped to untrusted
+visitors. For a public browser, use the restricted runtime provider:
+
+```ts
+import { createPromptRailsBrowserProvider } from "@promptrails/ai-chat";
+
+const provider = createPromptRailsBrowserProvider({
+  apiKey: "BROWSER_ONLY_CHAT_KEY",
+  agentId: "AGENT_KSUID",
+  workspaceId: "WORKSPACE_KSUID",
+  persistSession: true,
+  sessionMaxAge: 86400,
+});
+```
+
+Never embed an OpenAI/provider key, user JWT, PromptRails management key, or a
+browser key with permissions beyond the browser chat runtime in frontend code.
+
 ### OpenAI
+
+Trusted/server-side use only. Do not bundle an OpenAI key into a public web
+application; expose your own authenticated BFF endpoint to the browser instead.
 
 ```ts
 import { createOpenAIProvider } from "@promptrails/ai-chat";
 
 const provider = createOpenAIProvider({
-  apiKey: "sk-...",
+  apiKey: process.env.OPENAI_API_KEY!,
   model: "gpt-4o-mini", // default
   baseUrl: "https://api.openai.com/v1", // default
 });
@@ -284,6 +348,7 @@ import { createOpenAIProvider } from "@promptrails/ai-chat/providers";
 | `data-api-key` | API key for the provider | — |
 | `data-base-url` | Backend API URL | — |
 | `data-agent-id` | PromptRails agent ID | — |
+| `data-workspace-id` | Local session storage namespace | — |
 | `data-model` | LLM model name (OpenAI) | `"gpt-4o-mini"` |
 | `data-title` | Chat window title | `"Chat"` |
 | `data-placeholder` | Input placeholder text | `"Type a message..."` |
@@ -292,7 +357,12 @@ import { createOpenAIProvider } from "@promptrails/ai-chat/providers";
 | `data-primary-color` | Hex color for theming | `"#2563eb"` |
 | `data-width` | Panel width in pixels | `380` |
 | `data-height` | Panel height in pixels | `600` |
-| `data-z-index` | CSS z-index | `9999` |
+| `data-z-index` | CSS z-index | `2147483000` |
+| `data-persist-session` | Resume verified history after reload | `true` |
+| `data-session-max-age` | Local inactivity lifetime in seconds | `86400` |
+| `data-stylesheet-url` | Theme CSS loaded inside Shadow DOM | — |
+| `data-new-session-label` | Accessible new-session label | `"New conversation"` |
+| `data-feedback-label` | Feedback prompt | `"Was this helpful?"` |
 
 ## Development
 

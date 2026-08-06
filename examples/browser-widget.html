@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PromptRails browser widget example</title>
+    <style>
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background: #f3f0e9;
+        color: #171715;
+        font-family: Inter, sans-serif;
+      }
+      main {
+        max-width: 640px;
+        padding: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>PromptRails</p>
+      <h1>Genel browser widget örneği</h1>
+      <p>Sağ alt köşedeki düğme Shadow DOM içinde çalışan sohbeti açar.</p>
+    </main>
+    <script
+      src="../dist/widget.global.js"
+      data-provider="promptrails"
+      data-base-url="http://127.0.0.1:1"
+      data-api-key="browser_demo_key"
+      data-agent-id="3E0A8svdnmVo1k9u7lfsNGyCFmg"
+      data-workspace-id="3E0A8svdnmVo1k9u7lfsNGyCFmh"
+      data-title="PromptRails Asistanı"
+      data-greeting="Merhaba, size nasıl yardımcı olabilirim?"
+      data-placeholder="Mesajınızı yazın"
+      data-new-session-label="Yeni sohbet"
+      data-feedback-label="Bu yanıt yardımcı oldu mu?"
+      data-primary-color="#171715"
+      data-persist-session="false"
+    ></script>
+  </body>
+</html>
