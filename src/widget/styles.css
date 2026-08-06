@@ -40,6 +40,13 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
+.prc-widget-bubble:focus-visible,
+.prc-widget-panel button:focus-visible,
+.prc-widget-panel textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--prc-primary-color) 70%, white);
+  outline-offset: 2px;
+}
+
 .prc-widget-bubble--bottom-right {
   bottom: 20px;
   right: 20px;
@@ -204,6 +211,15 @@
   height: 100%;
   color: var(--prc-text-secondary);
   font-size: 14px;
+}
+
+.prc-widget-offline {
+  padding: 10px 12px;
+  border: 1px solid #d8a52f;
+  border-radius: 8px;
+  background: #fff8df;
+  color: #59420c;
+  font-size: 12px;
 }
 
 /* Message bubbles */
@@ -383,6 +399,17 @@
 
   .prc-widget-panel--bottom-left {
     right: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prc-widget-bubble,
+  .prc-widget-panel,
+  .prc-widget-bubble svg,
+  .prc-widget-typing-dot {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
   }
 }
 

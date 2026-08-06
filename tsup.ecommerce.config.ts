@@ -7,7 +7,7 @@ export default defineConfig({
   outDir: "dist",
   outExtension: () => ({ js: ".global.js" }),
   minify: true,
-  sourcemap: false,
+  sourcemap: true,
   platform: "browser",
   target: "es2020",
   treeshake: true,

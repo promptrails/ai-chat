@@ -1,6 +1,6 @@
 {
   "name": "@promptrails/ai-chat",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Embeddable AI chat widget + React hooks for building AI chat interfaces",
   "license": "MIT",
   "type": "module",
@@ -48,8 +48,51 @@
         "default": "./dist/providers/index.cjs"
       }
     },
+    "./browser": {
+      "import": {
+        "types": "./dist/browser/index.d.ts",
+        "default": "./dist/browser/index.js"
+      },
+      "require": {
+        "types": "./dist/browser/index.d.cts",
+        "default": "./dist/browser/index.cjs"
+      }
+    },
+    "./ui": {
+      "import": {
+        "types": "./dist/ui/index.d.ts",
+        "default": "./dist/ui/index.js"
+      },
+      "require": {
+        "types": "./dist/ui/index.d.cts",
+        "default": "./dist/ui/index.cjs"
+      }
+    },
     "./widget": "./dist/widget.global.js",
-    "./ecommerce-widget": "./dist/ecommerce.global.js",
+    "./ecommerce-widget": {
+      "types": "./dist/ecommerce/types.d.ts",
+      "default": "./dist/ecommerce.global.js"
+    },
+    "./ecommerce": {
+      "import": {
+        "types": "./dist/ecommerce/index.d.ts",
+        "default": "./dist/ecommerce/index.js"
+      },
+      "require": {
+        "types": "./dist/ecommerce/index.d.cts",
+        "default": "./dist/ecommerce/index.cjs"
+      }
+    },
+    "./ecommerce/react": {
+      "import": {
+        "types": "./dist/ecommerce/react.d.ts",
+        "default": "./dist/ecommerce/react.js"
+      },
+      "require": {
+        "types": "./dist/ecommerce/react.d.cts",
+        "default": "./dist/ecommerce/react.cjs"
+      }
+    },
     "./styles.css": "./dist/styles.css"
   },
   "files": [
@@ -58,20 +101,25 @@
     "LICENSE"
   ],
   "sideEffects": [
+    "./src/ecommerce/widget.js",
     "./dist/widget.global.js",
     "./dist/ecommerce.global.js",
     "./dist/styles.css"
   ],
   "scripts": {
-    "build": "node scripts/widget-styles.mjs && tsup && tsup --config tsup.widget.config.ts && tsup --config tsup.ecommerce.config.ts && tailwindcss -i ./src/styles.css -o ./dist/styles.css --minify",
+    "build": "node scripts/widget-styles.mjs && tsup && tsup --config tsup.widget.config.ts && tsup --config tsup.ecommerce.config.ts && tailwindcss -i ./src/styles.css -o ./dist/styles.css --minify && node scripts/generate-integrity.mjs",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "dev": "tsup --watch",
     "test": "vitest run",
+    "test:e2e": "npm run build && npm run docs:prepare && playwright test",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ && prettier --check 'src/**/*.{ts,tsx}'",
     "lint:fix": "eslint src/ --fix && prettier --write 'src/**/*.{ts,tsx}'",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "docs:prepare": "node scripts/prepare-docs.mjs",
+    "docs:serve": "node scripts/serve-docs.mjs"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
@@ -79,6 +127,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^18.3.0",
@@ -98,7 +147,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@promptrails/sdk": "^0.9.0",
+    "@promptrails/sdk": "^0.9.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0"
   },

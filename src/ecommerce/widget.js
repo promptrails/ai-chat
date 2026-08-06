@@ -1,4 +1,7 @@
-/* global CSS, CustomEvent, HTMLElement, TextDecoder, URL, customElements, document, fetch, localStorage, location, requestAnimationFrame, sessionStorage, window */
+/* global CSS, CustomEvent, HTMLElement, URL, customElements, document, fetch, localStorage, location, navigator, requestAnimationFrame, sessionStorage, window */
+import { createBrowserChatRuntime } from "../browser/runtime";
+import { normalizeChatUI } from "../ui/protocol";
+
 (() => {
   "use strict";
 
@@ -43,26 +46,30 @@
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "persist-session", "session-max-age"]; }
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "translations"];
+    }
 
     constructor() {
       super();
       this.root = this.attachShadow({ mode: "open" });
       this.catalog = [];
       this.messages = [];
-      this.chatId = "";
-      this.resumeToken = "";
-      this.accessToken = "";
-      this.accessTokenExpiresAt = 0;
+      this.runtime = null;
+      this.context = {};
       this.hydrationPromise = Promise.resolve();
-      this.open = false;
+      this.opened = false;
       this.busy = false;
       this.ready = false;
-      this.onWindowKey = (event) => { if (event.key === "Escape" && this.open) this.toggle(false); };
+      this.onWindowKey = (event) => this.handleWindowKey(event);
       this.onCartConfirmed = (event) => this.cartConfirmed(event);
+      this.onConnectivity = () => {
+        const offline = this.root.querySelector(".offline");
+        if (offline) offline.hidden = navigator.onLine;
+      };
     }
 
     connectedCallback() {
+      this.createRuntime();
       this.renderShell();
       this.bind();
       this.restore();
@@ -70,15 +77,26 @@
       this.loadCatalog().finally(() => { this.ready = true; });
       window.addEventListener("keydown", this.onWindowKey);
       window.addEventListener("promptrails:cart-confirmed", this.onCartConfirmed);
+      window.addEventListener("online", this.onConnectivity);
+      window.addEventListener("offline", this.onConnectivity);
     }
 
     disconnectedCallback() {
       window.removeEventListener("keydown", this.onWindowKey);
       window.removeEventListener("promptrails:cart-confirmed", this.onCartConfirmed);
+      window.removeEventListener("online", this.onConnectivity);
+      window.removeEventListener("offline", this.onConnectivity);
+      if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
     }
 
-    attributeChangedCallback() {
-      if (this.isConnected) this.renderShell();
+    attributeChangedCallback(name) {
+      if (!this.isConnected) return;
+      if (["api-url", "workspace-id", "agent-id", "api-key", "persist-session", "session-max-age"].includes(name)) {
+        if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
+        this.createRuntime();
+        this.hydrationPromise = this.hydrateSession();
+      }
+      this.renderShell();
     }
 
     get config() {
@@ -105,9 +123,51 @@
         currency: this.getAttribute("currency")?.trim().toLocaleUpperCase() || "TRY",
         locale: this.getAttribute("locale")?.trim() || "tr-TR",
         stylesheetUrl: stylesheetUrl(this.getAttribute("stylesheet-url")),
+        styleNonce: this.getAttribute("style-nonce")?.trim() || "",
         persistSession: this.getAttribute("persist-session") !== "false",
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
       };
+    }
+
+    get labels() {
+      const english = {
+        open: "Open chat", close: "Minimize chat", newChat: "Start a new chat", online: "Online",
+        welcomeTitle: "Let's find it together.", message: "Your message", send: "Send message",
+        thinking: "is reviewing options", poweredBy: "Powered by PromptRails", demo: "Demo mode",
+        view: "View", add: "Add to cart", adding: "Adding…", added: "Added ✓",
+        size: "Size", color: "Color", quantity: "Quantity", shipping: "Shipment", order: "Order",
+        feedback: "Was this helpful?", helpful: "Helpful", notHelpful: "Not helpful",
+        offline: "You are offline. Check your connection.", retry: "Try again",
+      };
+      const turkish = {
+        open: "Sohbeti aç", close: "Sohbeti küçült", newChat: "Yeni sohbet başlat", online: "Çevrimiçi",
+        welcomeTitle: "Birlikte bulalım.", message: "Mesajınız", send: "Mesajı gönder",
+        thinking: "seçkiyi inceliyor", poweredBy: "PromptRails ile çalışır", demo: "Demo modu",
+        view: "İncele", add: "Sepete ekle", adding: "Ekleniyor…", added: "Sepete eklendi ✓",
+        size: "Beden", color: "Renk", quantity: "Adet", shipping: "Kargo takibi", order: "Sipariş",
+        feedback: "Bu öneri yardımcı oldu mu?", helpful: "Yardımcı oldu", notHelpful: "Yardımcı olmadı",
+        offline: "Çevrimdışısınız. Bağlantınızı kontrol edin.", retry: "Tekrar deneyelim",
+      };
+      let custom = {};
+      try { custom = JSON.parse(this.getAttribute("translations") || "{}"); } catch { /* invalid overrides are ignored */ }
+      return { ...(this.config.locale.toLowerCase().startsWith("tr") ? turkish : english), ...custom };
+    }
+
+    createRuntime() {
+      if (!this.configured) return;
+      this.migrateLegacySession();
+      this.runtime = createBrowserChatRuntime({
+        apiKey: this.config.apiKey,
+        agentId: this.config.agentId,
+        baseUrl: this.config.apiUrl,
+        workspaceId: this.config.workspaceId,
+        title: `${this.config.brand} web store`,
+        metadata: { channel: "ecommerce_widget" },
+        persistSession: this.config.persistSession,
+        sessionMaxAge: Math.floor(this.config.sessionMaxAgeMs / 1000),
+        storageKey: `${this.storageKey}:session`,
+        onEvent: (event) => this.emit("promptrails:runtime", event),
+      });
     }
 
     get configured() {
@@ -121,21 +181,23 @@
     }
 
     renderShell() {
-      const { assistantName, assistantMark, launcherTitle, launcherSubtitle, greeting, placeholder, quickPrompts, accent, stylesheetUrl: customStylesheet } = this.config;
-      this.root.innerHTML = `<style>${this.styles(accent)}${this.compactStyles()}</style>${customStylesheet ? `<link rel="stylesheet" href="${safe(customStylesheet)}">` : ""}
-        <button class="launcher" type="button" aria-label="${safe(assistantName)} sohbetini aç" aria-expanded="${this.open}" ${this.open ? "hidden" : ""}>
+      const { assistantName, assistantMark, launcherTitle, launcherSubtitle, greeting, placeholder, quickPrompts, accent, stylesheetUrl: customStylesheet, styleNonce } = this.config;
+      const labels = this.labels;
+      this.root.innerHTML = `<style${styleNonce ? ` nonce="${safe(styleNonce)}"` : ""}>${this.styles(accent)}${this.compactStyles()}</style>${customStylesheet ? `<link rel="stylesheet" href="${safe(customStylesheet)}">` : ""}
+        <button class="launcher" part="launcher" type="button" aria-label="${safe(labels.open)}" aria-expanded="${this.opened}" aria-controls="pt-shop-panel" ${this.opened ? "hidden" : ""}>
           <span class="launcher-mark">${safe(assistantMark)}</span><span><strong>${safe(launcherTitle)}</strong><small>${safe(launcherSubtitle)}</small></span><i aria-hidden="true">↗</i>
         </button>
-        <section class="panel ${this.open ? "is-open" : ""}" role="dialog" aria-modal="false" aria-label="${safe(assistantName)}">
-          <header><div><span class="avatar">${safe(assistantMark)}</span><p><strong>${safe(assistantName)}</strong><small><i></i> Çevrimiçi</small></p></div><div class="panel-actions"><button class="new-chat" type="button" aria-label="Yeni sohbet başlat" title="Yeni sohbet">＋</button><button class="close" type="button" aria-label="Sohbeti küçült">×</button></div></header>
-          <div class="conversation" aria-live="polite">
-            <div class="welcome"><span class="welcome-mark">${safe(assistantMark)}</span><h2>Birlikte bulalım.</h2><p>${safe(greeting)}</p></div>
+        <section id="pt-shop-panel" class="panel ${this.opened ? "is-open" : ""}" part="panel" role="dialog" aria-modal="false" aria-label="${safe(assistantName)}" aria-hidden="${!this.opened}">
+          <header part="header"><div><span class="avatar">${safe(assistantMark)}</span><p><strong>${safe(assistantName)}</strong><small><i></i> ${safe(labels.online)}</small></p></div><div class="panel-actions"><button class="new-chat" type="button" aria-label="${safe(labels.newChat)}" title="${safe(labels.newChat)}">＋</button><button class="close" type="button" aria-label="${safe(labels.close)}">×</button></div></header>
+          <div class="conversation" role="log" aria-live="polite" part="messages">
+            <div class="welcome"><span class="welcome-mark">${safe(assistantMark)}</span><h2>${safe(labels.welcomeTitle)}</h2><p>${safe(greeting)}</p></div>
             <div class="quick initial">${quickPrompts.map((prompt) => `<button type="button">${safe(prompt)}</button>`).join("")}</div>
             <div class="messages"></div>
-            <div class="typing" hidden><span></span><span></span><span></span><em>${safe(assistantName)} seçkiyi inceliyor</em></div>
+            <div class="offline" ${navigator.onLine ? "hidden" : ""}>${safe(labels.offline)}</div>
+            <div class="typing" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em></div>
           </div>
-          <form class="composer"><label class="sr-only" for="pt-message">Mesajınız</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="Mesajı gönder">↑</button></form>
-          <footer><span>✦</span> PromptRails ile çalışır${this.configured ? "" : " · Demo modu"}</footer>
+          <form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>
+          <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
         </section>`;
       this.paintMessages();
       this.bind();
@@ -146,7 +208,7 @@
       const close = this.root.querySelector(".close");
       const newChat = this.root.querySelector(".new-chat");
       const form = this.root.querySelector(".composer");
-      if (launcher) launcher.onclick = () => this.toggle(!this.open);
+      if (launcher) launcher.onclick = () => this.toggle(!this.opened);
       if (close) close.onclick = () => this.toggle(false);
       if (newChat) newChat.onclick = () => this.startNewSession();
       if (form) form.onsubmit = (event) => {
@@ -168,8 +230,14 @@
         const product = this.catalog.find((item) => item.id === button.dataset.add);
         if (!product) return;
         button.disabled = true;
-        button.textContent = "Ekleniyor…";
-        this.emit("promptrails:cart-add", { productId: product.id, slug: product.slug, size: product.sizes?.[0], color: product.colors?.[0] });
+        button.textContent = this.labels.adding;
+        const selected = this.selectedVariants?.[product.id] || {};
+        this.emit("promptrails:cart-add", { productId: product.id, slug: product.slug, size: selected.size || product.sizes?.[0], color: selected.color || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
+      }; });
+      this.root.querySelectorAll("[data-variant]").forEach((select) => { select.onchange = () => {
+        this.selectedVariants ||= {};
+        this.selectedVariants[select.dataset.productId] ||= {};
+        this.selectedVariants[select.dataset.productId][select.dataset.variant] = select.value;
       }; });
       this.root.querySelectorAll("[data-feedback]").forEach((button) => {
         button.onclick = () => this.submitFeedback(Number(button.dataset.messageIndex), Number(button.dataset.feedback));
@@ -177,41 +245,47 @@
     }
 
     toggle(next) {
-      this.open = next;
+      this.opened = next;
       this.root.querySelector(".panel")?.classList.toggle("is-open", next);
+      this.root.querySelector(".panel")?.setAttribute("aria-hidden", String(!next));
       const launcher = this.root.querySelector(".launcher");
       launcher?.setAttribute("aria-expanded", String(next));
       if (launcher) launcher.hidden = next;
       if (next) requestAnimationFrame(() => this.root.querySelector("textarea")?.focus());
+      this.emit(next ? "promptrails:open" : "promptrails:close", {});
+    }
+
+    open() { this.toggle(true); }
+    close() { this.toggle(false); }
+    newSession() { return this.startNewSession(); }
+    updateContext(context = {}) { this.context = { ...this.context, ...context }; }
+    destroy() { this.remove(); }
+
+    handleWindowKey(event) {
+      if (event.key === "Escape" && this.opened) { event.preventDefault(); this.toggle(false); return; }
+      if (!this.opened || event.key !== "Tab") return;
+      const focusable = [...this.root.querySelectorAll('button:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && this.root.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && this.root.activeElement === last) { event.preventDefault(); first.focus(); }
     }
 
     emit(name, detail) {
       this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
     }
 
-    startNewSession() {
-      const previousSession = this.chatId && this.resumeToken ? { chatId: this.chatId, resumeToken: this.resumeToken } : null;
-      this.chatId = "";
-      this.resumeToken = "";
+    async startNewSession() {
       this.messages = [];
       try {
         localStorage.removeItem(this.storageKey);
         sessionStorage.removeItem(this.storageKey);
       } catch { /* storage is optional */ }
+      await this.runtime?.newSession();
       this.paintMessages();
       this.root.querySelector("textarea")?.focus();
       this.emit("promptrails:session-new", {});
-      if (previousSession && this.configured) this.revokeSession(previousSession).catch(() => {});
-    }
-
-    async revokeSession({ chatId, resumeToken }) {
-      const token = await this.ensureAccessToken();
-      await fetch(`${this.config.apiUrl}/api/v1/browser/chat/sessions/${encodeURIComponent(chatId)}`, {
-        method: "DELETE",
-        mode: "cors",
-        credentials: "omit",
-        headers: { Authorization: `Bearer ${token}`, "X-Chat-Resume-Token": resumeToken },
-      });
     }
 
     async loadCatalog() {
@@ -237,15 +311,12 @@
           sessionStorage.removeItem(this.storageKey);
           return;
         }
-        this.chatId = typeof saved.chatId === "string" && /^[0-9A-Za-z]{27}$/.test(saved.chatId) ? saved.chatId : "";
-        this.resumeToken = typeof saved.resumeToken === "string" && saved.resumeToken.length >= 32 ? saved.resumeToken : "";
-        if (!this.resumeToken) this.chatId = "";
         this.messages = Array.isArray(saved.messages)
           ? saved.messages.slice(-20).map((message) =>
             message?.role === "user" ? { ...message, text: visibleUserText(message.text) } : message,
           )
           : [];
-        localStorage.setItem(this.storageKey, JSON.stringify({ chatId: this.chatId, resumeToken: this.resumeToken, messages: this.messages, lastActivityAt }));
+        localStorage.setItem(this.storageKey, JSON.stringify({ messages: this.messages, lastActivityAt }));
         sessionStorage.removeItem(this.storageKey);
         this.paintMessages();
       } catch { /* private-mode storage can be unavailable */ }
@@ -255,39 +326,48 @@
       if (!this.config.persistSession) return;
       try {
         localStorage.setItem(this.storageKey, JSON.stringify({
-          chatId: this.chatId,
-          resumeToken: this.resumeToken,
           messages: this.messages.slice(-20),
           lastActivityAt: Date.now(),
         }));
       } catch { /* optional persistence */ }
     }
 
-    async hydrateSession() {
-      if (!this.configured || !this.chatId || !this.resumeToken) return;
-      const restoringChatId = this.chatId;
-      const restoringResumeToken = this.resumeToken;
+    migrateLegacySession() {
+      if (!this.config.persistSession) return;
       try {
-        const payload = await this.runtimeRequest(`${this.config.apiUrl}/api/v1/browser/chat/sessions/${encodeURIComponent(restoringChatId)}/messages?limit=50`);
-        if (this.chatId !== restoringChatId || this.resumeToken !== restoringResumeToken) return;
-        const rows = Array.isArray(payload.data) ? payload.data : [];
+        const raw = localStorage.getItem(this.storageKey) || sessionStorage.getItem(this.storageKey);
+        if (!raw || localStorage.getItem(`${this.storageKey}:session`)) return;
+        const saved = JSON.parse(raw);
+        const sessionId = typeof saved.chatId === "string" ? saved.chatId : saved.sessionId;
+        if (/^[0-9A-Za-z]{27}$/.test(sessionId || "") && typeof saved.resumeToken === "string" && saved.resumeToken.length >= 32) {
+          localStorage.setItem(`${this.storageKey}:session`, JSON.stringify({ sessionId, resumeToken: saved.resumeToken, lastActivityAt: Number(saved.lastActivityAt) || Date.now() }));
+        }
+      } catch { /* optional migration */ }
+    }
+
+    async hydrateSession() {
+      if (!this.runtime) return;
+      try {
+        const rows = await this.runtime.hydrate();
         if (!rows.length) {
           this.persist();
           return;
         }
         this.messages = rows.filter((row) => row?.role === "user" || row?.role === "assistant").map((row) => {
           if (row.role === "user") return { role: "user", text: visibleUserText(row.content) };
-          return { role: "assistant", ...this.normalizeAnswer({ output: row.content, executionId: row.metadata?.execution_id }) };
+          return { role: "assistant", ...this.normalizeAnswer({ output: row.content, executionId: row.executionId || row.metadata?.execution_id }) };
         }).slice(-20);
         this.persist();
         this.paintMessages();
-      } catch (error) {
-        if (error?.status === 403 || error?.status === 404) this.startNewSession();
-      }
+      } catch { /* unavailable history starts fresh */ }
     }
 
     async send(content) {
       this.toggle(true);
+      if (!navigator.onLine) {
+        this.emit("promptrails:error", { code: "offline" });
+        return;
+      }
       if (!this.ready) await this.loadCatalog();
       await this.hydrationPromise;
       this.messages.push({ role: "user", text: content });
@@ -295,10 +375,10 @@
       this.paintMessages();
       this.setTyping(true);
       try {
-        const result = this.configured ? await this.askPromptRails(content) : await this.localAnswer(content);
+        const result = this.runtime ? await this.askPromptRails(content) : await this.localAnswer(content);
         this.messages.push({ role: "assistant", ...result });
       } catch (error) {
-        this.messages.push({ role: "assistant", text: this.errorMessage(error), products: [], quickReplies: ["Tekrar deneyelim"] });
+        this.messages.push({ role: "assistant", text: this.errorMessage(error), products: [], quickReplies: [this.labels.retry] });
       } finally {
         this.busy = false;
         this.setTyping(false);
@@ -308,132 +388,26 @@
     }
 
     async askPromptRails(customerMessage) {
-      const { apiUrl, agentId } = this.config;
-      const base = `${apiUrl}/api/v1`;
-      if (!this.chatId) {
-        const created = await this.runtimeRequest(`${base}/browser/chat/sessions`, {
-          method: "POST",
-          body: JSON.stringify({ agent_id: agentId, title: `${this.config.brand} web mağazası`, metadata: { channel: "ecommerce_widget" } }),
-        });
-        this.chatId = String(created.data?.id ?? created.data?.session_id ?? "");
-        this.resumeToken = String(created.data?.resume_token ?? "");
-        if (!this.chatId || !this.resumeToken) throw new Error("Sohbet oturumu başlatılamadı.");
-        this.persist();
-      }
-      const content = [
-        "<SAYFA_BAGLAMI>",
-        JSON.stringify({ baslik: document.title, yol: location.pathname }),
-        "</SAYFA_BAGLAMI>",
-        "<MUSTERI_MESAJI>",
-        customerMessage,
-        "</MUSTERI_MESAJI>",
-      ].join("\n");
+      if (!this.runtime) throw new Error("Chat runtime is not configured.");
+      const pageContext = typeof this.contextProvider === "function" ? await this.contextProvider() : {};
+      const context = { title: document.title, path: location.pathname, ...pageContext, ...this.context };
+      let finalOutput;
+      let ui;
+      let executionId = "";
       try {
-        const result = await this.readMessageStream(`${base}/browser/chat/sessions/${encodeURIComponent(this.chatId)}/messages/stream`, content);
-        return this.normalizeAnswer(result);
+        for await (const event of this.runtime.sendMessageStream({ content: customerMessage, context })) {
+          if (event.type === "error") throw new Error(event.error || "Agent could not respond.");
+          if (event.type === "execution") executionId = event.executionId || "";
+          if (event.type === "ui") ui = event.ui;
+          if (event.type === "done") finalOutput = event.output;
+        }
+        if (finalOutput === undefined) throw new Error("Agent response did not complete.");
+        return this.normalizeAnswer({ output: finalOutput, ui, executionId });
       } catch (error) {
         if (error?.status !== 403) throw error;
-        this.chatId = "";
-        this.resumeToken = "";
-        this.persist();
+        await this.runtime.newSession();
         return this.askPromptRails(customerMessage);
       }
-    }
-
-    async ensureAccessToken(force = false) {
-      if (!force && this.accessToken && Date.now() < this.accessTokenExpiresAt - 30_000) return this.accessToken;
-      const response = await fetch(`${this.config.apiUrl}/api/v1/browser/chat/token`, {
-        method: "POST",
-        mode: "cors",
-        credentials: "omit",
-        headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-Key": this.config.apiKey },
-        body: JSON.stringify({ agent_id: this.config.agentId }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw this.httpError(response.status, payload);
-      this.accessToken = String(payload.data?.access_token ?? "");
-      const expiresIn = Number(payload.data?.expires_in) || 900;
-      this.accessTokenExpiresAt = Date.now() + expiresIn * 1000;
-      if (!this.accessToken) throw new Error("Geçici sohbet anahtarı alınamadı.");
-      return this.accessToken;
-    }
-
-    async runtimeRequest(url, options = {}, retry = true) {
-      const token = await this.ensureAccessToken();
-      const response = await fetch(url, {
-        mode: "cors",
-        credentials: "omit",
-        ...options,
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-          ...(this.chatId && this.resumeToken ? { "X-Chat-Resume-Token": this.resumeToken } : {}),
-          ...(options.body ? { "Content-Type": "application/json" } : {}),
-          ...(options.headers || {}),
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (response.status === 401 && retry) {
-        await this.ensureAccessToken(true);
-        return this.runtimeRequest(url, options, false);
-      }
-      if (!response.ok) throw this.httpError(response.status, payload);
-      return payload;
-    }
-
-    httpError(status, payload = {}) {
-      const detail = typeof payload.error === "string" ? payload.error : payload.error?.message ?? payload.message;
-      const error = new Error(detail || `İstek başarısız (${status}).`);
-      error.status = status;
-      return error;
-    }
-
-    async readMessageStream(url, content) {
-      const token = await this.ensureAccessToken();
-      let response = await fetch(url, {
-        method: "POST",
-        mode: "cors",
-        credentials: "omit",
-        headers: { Accept: "text/event-stream", "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-Chat-Resume-Token": this.resumeToken },
-        body: JSON.stringify({ content }),
-      });
-      if (response.status === 401) {
-        const refreshed = await this.ensureAccessToken(true);
-        response = await fetch(url, {
-          method: "POST", mode: "cors", credentials: "omit",
-          headers: { Accept: "text/event-stream", "Content-Type": "application/json", Authorization: `Bearer ${refreshed}`, "X-Chat-Resume-Token": this.resumeToken },
-          body: JSON.stringify({ content }),
-        });
-      }
-      if (!response.ok || !response.body) {
-        const payload = await response.json().catch(() => ({}));
-        throw this.httpError(response.status, payload);
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finalOutput;
-      let uiEvent;
-      let executionId = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-        const blocks = buffer.split(/\r?\n\r?\n/);
-        buffer = blocks.pop() || "";
-        for (const block of blocks) {
-          const event = block.match(/^event:\s*(.+)$/m)?.[1]?.trim() || "message";
-          const raw = block.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
-          if (!raw) continue;
-          const data = JSON.parse(raw);
-          if (event === "error") throw new Error(data.message || data.error || "Agent yanıt veremedi.");
-          if (event === "execution") executionId = String(data.execution_id ?? "");
-          if (event === "ui") uiEvent = data;
-          if (event === "done" || event === "complete") finalOutput = data.output ?? data.result ?? data;
-        }
-        if (done) break;
-      }
-      if (finalOutput === undefined) throw new Error("Agent yanıtı tamamlanamadı.");
-      return { output: finalOutput, ui: uiEvent, executionId };
     }
 
     normalizeAnswer(result) {
@@ -445,15 +419,16 @@
         try { value = JSON.parse(candidate); } catch { value = { message: plainText(value) }; }
       }
       if (!value || typeof value !== "object") value = { message: plainText(value) };
-      const genericUI = result?.ui?.version === "1" ? result.ui : value.ui?.version === "1" ? value.ui : null;
-      const resources = genericUI ? genericUI.resources?.filter((resource) => resource?.kind === "product") ?? [] : [];
+      const genericUI = normalizeChatUI(result?.ui) || normalizeChatUI(value.ui);
+      const resources = genericUI ? genericUI.resources.filter((resource) => resource.kind === "product") : [];
+      const statusCards = genericUI ? genericUI.resources.filter((resource) => ["order", "order_tracking", "status"].includes(resource.kind)).map((resource) => ({ id: resource.id, kind: resource.kind, ...resource.attributes })).slice(0, 3) : [];
       const requested = resources.length ? resources : Array.isArray(value.products) ? value.products : Array.isArray(value.urunler) ? value.urunler : [];
-      const actions = Array.isArray(genericUI?.actions) ? genericUI.actions : [];
+      const actions = genericUI?.actions || [];
       const products = requested.map((entry) => {
         const id = typeof entry === "string" ? entry : entry.id ?? entry.product_id;
         const product = this.catalog.find((item) => item.id === id);
         const attributes = entry?.attributes && typeof entry.attributes === "object" ? entry.attributes : entry;
-        const resourceActions = actions.filter((action) => action?.resource_id === id);
+        const resourceActions = actions.filter((action) => action.resourceId === id);
         const viewAction = resourceActions.find((action) => action.kind === "resource.open");
         const addAction = resourceActions.find((action) => action.kind === "cart.add");
         return product ? {
@@ -461,15 +436,16 @@
           reason: plainText(attributes.reason ?? attributes.neden ?? "Size uygun bir seçenek."),
           canView: !genericUI || Boolean(viewAction),
           canAdd: !genericUI || Boolean(addAction),
-          viewLabel: plainText(viewAction?.label ?? "İncele"),
-          addLabel: plainText(addAction?.label ?? "Sepete ekle"),
+          viewLabel: plainText(viewAction?.label ?? this.labels.view),
+          addLabel: plainText(addAction?.label ?? this.labels.add),
         } : null;
       }).filter(Boolean).slice(0, 3);
       return {
         text: plainText(value.message ?? value.mesaj ?? value.answer ?? "Seçkiden birkaç alternatif hazırladım."),
         products,
+        statusCards,
         quickReplies: genericUI
-          ? (genericUI.suggestions ?? []).filter((item) => typeof item?.label === "string" && typeof item?.value === "string").map((item) => ({ label: plainText(item.label), value: plainText(item.value) })).slice(0, 3)
+          ? genericUI.suggestions.map((item) => ({ label: plainText(item.label), value: plainText(item.value) })).slice(0, 3)
           : (value.quick_replies ?? value.hizli_yanitlar ?? []).filter((item) => typeof item === "string").slice(0, 3),
         executionId: String(result?.executionId ?? ""),
       };
@@ -516,20 +492,18 @@
     cartConfirmed(event) {
       const id = event.detail?.productId;
       const button = this.root.querySelector(`[data-add="${CSS.escape(String(id))}"]`);
-      if (button) { button.textContent = "Sepete eklendi ✓"; button.disabled = false; }
+      if (button) { button.textContent = this.labels.added; button.disabled = false; }
     }
 
     async submitFeedback(messageIndex, value) {
       const message = this.messages[messageIndex];
-      if (!message?.executionId || !this.chatId || !this.resumeToken || ![-1, 1].includes(value)) return;
+      if (!message?.executionId || !this.runtime || ![-1, 1].includes(value)) return;
       message.feedback = value;
       this.persist();
       this.paintMessages();
       try {
-        await this.runtimeRequest(`${this.config.apiUrl}/api/v1/browser/chat/sessions/${encodeURIComponent(this.chatId)}/feedback`, {
-          method: "POST",
-          body: JSON.stringify({ execution_id: message.executionId, value }),
-        });
+        await this.runtime.submitFeedback(message.executionId, value);
+        this.emit("promptrails:feedback", { executionId: message.executionId, value });
       } catch {
         delete message.feedback;
         this.persist();
@@ -543,7 +517,7 @@
       this.root.querySelector(".conversation")?.classList.toggle("has-messages", this.messages.length > 0);
       target.innerHTML = this.messages.map((message, index) => message.role === "user"
         ? `<article class="message user"><p>${safe(message.text)}</p></article>`
-        : `<article class="message assistant"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><p>${safe(message.text)}</p>${this.productMarkup(message.products)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`).join("");
+        : `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><p>${safe(message.text)}</p>${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`).join("");
       this.bind();
       this.scroll(this.messages.at(-1)?.role === "assistant" ? "message" : "bottom");
     }
@@ -551,14 +525,23 @@
     productMarkup(products = []) {
       if (!products.length) return "";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
-      return `<div class="recommendations-list">${products.map((product) => `<article class="recommendation">
+      return `<div class="recommendations-list">${products.map((product) => `<article class="recommendation" part="card product-card">
         <div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>
         <div><small>${safe(product.category)}</small><h3>${safe(product.name)}</h3><strong>${money.format(Number(product.price) || 0)}</strong><p>${safe(product.reason)}</p></div>
+        ${(product.sizes?.length || product.colors?.length) ? `<div class="variants">
+          ${product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option>${safe(size)}</option>`).join("")}</select></label>` : ""}
+          ${product.colors?.length ? `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option>${safe(color)}</option>`).join("")}</select></label>` : ""}
+          <label><span>${safe(this.labels.quantity)}</span><select data-variant="quantity" data-product-id="${safe(product.id)}"><option>1</option><option>2</option><option>3</option></select></label>
+        </div>` : ""}
         <div class="recommendation-actions">
-          ${product.canView === false ? "" : `<button type="button" class="view" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.viewLabel || "İncele")}</button>`}
-          ${product.canAdd === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || "Sepete ekle")}</button>`}
+          ${product.canView === false ? "" : `<button type="button" class="view" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.viewLabel || this.labels.view)}</button>`}
+          ${product.canAdd === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || this.labels.add)}</button>`}
         </div>
       </article>`).join("")}</div>`;
+    }
+
+    statusMarkup(cards = []) {
+      return cards.length ? `<div class="status-cards">${cards.map((card) => `<article class="status-card" part="card status-card"><small>${safe(card.kind === "order_tracking" ? this.labels.shipping : this.labels.order)}</small><h3>${safe(card.title || card.order_number || card.id)}</h3><p>${safe(card.message || card.status || "")}</p>${card.tracking_code ? `<strong>${safe(card.tracking_code)}</strong>` : ""}${card.estimated_delivery ? `<time>${safe(card.estimated_delivery)}</time>` : ""}</article>`).join("")}</div>` : "";
     }
 
     quickMarkup(items = []) {
@@ -571,10 +554,10 @@
 
     feedbackMarkup(message, index) {
       if (!message.executionId || !this.configured) return "";
-      return `<div class="feedback" aria-label="Yanıtı değerlendir">
-        <span>Bu öneri yardımcı oldu mu?</span>
-        <button type="button" data-feedback="1" data-message-index="${index}" aria-label="Olumlu değerlendir" aria-pressed="${message.feedback === 1}">👍</button>
-        <button type="button" data-feedback="-1" data-message-index="${index}" aria-label="Olumsuz değerlendir" aria-pressed="${message.feedback === -1}">👎</button>
+      return `<div class="feedback" aria-label="${safe(this.labels.feedback)}">
+        <span>${safe(this.labels.feedback)}</span>
+        <button type="button" data-feedback="1" data-message-index="${index}" aria-label="${safe(this.labels.helpful)}" aria-pressed="${message.feedback === 1}">👍</button>
+        <button type="button" data-feedback="-1" data-message-index="${index}" aria-label="${safe(this.labels.notHelpful)}" aria-pressed="${message.feedback === -1}">👎</button>
       </div>`;
     }
 
@@ -643,18 +626,37 @@
           grid-column: auto;
           min-height: 31px;
         }
+        .variants { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+        .variants label { display: grid; gap: 3px; color: #77736c; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+        .variants select { min-width: 0; height: 31px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); color: var(--pt-chat-text, #171715); padding: 0 6px; font: 10px inherit; }
+        .status-cards { display: grid; gap: 8px; margin-top: 10px; }
+        .status-card { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); }
+        .status-card small { color: var(--pt-chat-muted, #68655f); text-transform: uppercase; letter-spacing: .1em; font-size: 8px; }
+        .status-card h3, .status-card p { margin: 0; }
+        .status-card h3 { font: 400 16px/1.2 Georgia, serif; }
+        .status-card p, .status-card time { color: var(--pt-chat-muted, #68655f); font-size: 10px; }
+        .offline { margin: 8px 0; border: 1px solid #d8a52f; background: #fff8df; padding: 9px; color: #59420c; font-size: 10px; }
+        button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid color-mix(in srgb, var(--pt-accent) 70%, white); outline-offset: 2px; }
         .composer textarea { min-height: 47px; padding-block: 14px; }
         .feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 7px; color: #77736c; font-size: 9px; }
         .feedback button { width: 27px; height: 27px; padding: 0; border: 1px solid #d7d2c9; border-radius: 50%; background: #fff; cursor: pointer; font-size: 12px; filter: grayscale(1); }
         .feedback button[aria-pressed="true"] { border-color: #171715; background: #ebe7df; filter: none; }
         @media (max-width: 560px) {
-          .panel { width: auto; height: auto; }
+          .panel {
+            position: fixed !important;
+            inset: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)) !important;
+            width: calc(100vw - 16px) !important;
+            min-width: 0 !important;
+            max-width: calc(100vw - 16px) !important;
+            height: calc(100dvh - 16px) !important;
+            max-height: calc(100dvh - 16px) !important;
+          }
         }
       `;
     }
 
     styles(accent) {
-      return `:host{--pt-accent:var(--pt-chat-accent,${safe(accent)});position:fixed;right:var(--pt-chat-right,24px);bottom:var(--pt-chat-bottom,24px);z-index:var(--pt-chat-z-index,2147483000);font-family:var(--pt-chat-font-family,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);color:var(--pt-chat-text,#171715);line-height:1.45;contain:style}:host *{box-sizing:border-box}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.launcher{width:230px;min-height:64px;border:0;border-radius:2px;background:var(--pt-accent);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 14px;box-shadow:0 15px 42px rgba(0,0,0,.25);cursor:pointer;text-align:left}.launcher-mark,.avatar,.mini-avatar{display:grid;place-items:center;border:1px solid currentColor;font-family:Georgia,serif}.launcher-mark{width:36px;height:36px;font-size:20px}.launcher span:nth-child(2){display:grid;flex:1}.launcher strong{font:600 12px/1.3 inherit;letter-spacing:.02em}.launcher small{font-size:10px;color:rgba(255,255,255,.65)}.launcher i{font-style:normal;font-size:20px}.panel{position:absolute;right:0;bottom:0;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#f7f5f0;border:1px solid #d7d2c9;box-shadow:0 24px 70px rgba(0,0,0,.27);display:none;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden}.panel.is-open{display:grid}.panel header{background:var(--pt-accent);color:#fff;min-height:72px;padding:13px 17px;display:flex;justify-content:space-between;align-items:center}.panel header>div{display:flex;gap:12px;align-items:center}.avatar{width:38px;height:38px;font-size:20px}.panel header p{display:grid;margin:0}.panel header strong{font-family:Georgia,serif;font-size:16px;font-weight:400}.panel header small{font-size:10px;color:rgba(255,255,255,.68);margin-top:3px}.panel header small i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#87bd8b;margin-right:4px}.close{border:0;background:transparent;color:#fff;font-size:29px;line-height:1;cursor:pointer}.conversation{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:22px 18px 14px;scrollbar-width:thin}.conversation.has-messages{padding-top:8px}.conversation.has-messages .welcome,.conversation.has-messages .quick.initial{display:none}.welcome{text-align:center;border-bottom:1px solid #dfdbd3;padding:4px 15px 20px}.welcome-mark{display:grid;place-items:center;margin:0 auto 11px;border:1px solid #171715;width:40px;height:40px;font:22px Georgia,serif}.welcome h2{font:400 27px/1.1 Georgia,serif;margin:0 0 9px}.welcome p{font-size:12px;color:#65635f;margin:0}.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.quick.initial{justify-content:center;padding:4px 0 15px}.quick button{border:1px solid #cbc6bd;background:#fff;border-radius:20px;padding:8px 11px;font:500 10px inherit;cursor:pointer;color:#3c3b38}.quick button:hover{border-color:#171715}.message{margin:12px 0}.message>p,.message.assistant>div>p{margin:0;padding:12px 14px;font-size:13px;white-space:pre-line}.message.user{display:flex;justify-content:flex-end}.message.user>p{background:var(--pt-accent);color:#fff;max-width:82%;border-radius:13px 13px 2px 13px}.message.assistant{display:grid;grid-template-columns:25px 1fr;gap:8px;align-items:start}.message.assistant>div>p{background:#fff;border:1px solid #e0dcd4;border-radius:2px 13px 13px 13px}.mini-avatar{width:25px;height:25px;font:13px Georgia,serif}.recommendations-list{display:grid;gap:10px;margin-top:10px}.recommendation{background:#fff;border:1px solid #dcd7ce;padding:10px;display:grid;grid-template-columns:86px 1fr;gap:9px}.recommendation-image{width:86px;height:112px;background-repeat:no-repeat;background-color:#ddd6cc}.recommendation h3{font:400 16px/1.15 Georgia,serif;margin:3px 0}.recommendation small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#77736c}.recommendation strong{font-size:11px}.recommendation div:nth-child(2)>p{font-size:10px;color:#68655f;margin:7px 0 0}.recommendation button{grid-column:1/-1;min-height:34px;text-transform:uppercase;font:600 9px inherit;letter-spacing:.08em;cursor:pointer}.recommendation .view{background:#fff;border:1px solid #171715}.recommendation .add{background:#171715;color:#fff;border:1px solid #171715}.typing{display:flex;align-items:center;gap:4px;margin:16px 0 10px 33px}.typing span{width:6px;height:6px;border-radius:50%;background:#777;animation:pulse 1.1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}.typing em{font:normal 9px inherit;color:#777;margin-left:5px}.typing[hidden]{display:none}@keyframes pulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.composer{margin:0 14px 10px;border:1px solid #c9c4bb;background:#fff;display:grid;grid-template-columns:1fr 41px;align-items:end}.composer textarea{resize:none;border:0;outline:0;min-height:51px;max-height:90px;padding:16px 12px;background:transparent;font:13px inherit}.composer button{width:34px;height:34px;margin:0 6px 8px 0;border:0;border-radius:50%;background:var(--pt-accent);color:#fff;font-size:19px;cursor:pointer}.panel>footer{text-align:center;padding:0 10px 10px;color:#969188;text-transform:uppercase;font-size:8px;letter-spacing:.13em}.panel>footer span{color:#171715;font-size:11px}@media(max-width:560px){:host{right:12px;bottom:12px}.launcher{width:58px;height:58px;min-height:58px;padding:10px;border-radius:50%}.launcher span:nth-child(2),.launcher i{display:none}.launcher-mark{border:0}.panel{position:fixed;inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));width:auto;height:auto;max-height:none;border:1px solid #d7d2c9}.conversation{padding-left:14px;padding-right:14px}}@media(max-height:620px){.panel header{min-height:60px;padding-top:9px;padding-bottom:9px}.conversation{padding-top:10px}.welcome-mark{display:none}.welcome h2{font-size:23px}.welcome{padding-top:0;padding-bottom:12px}.quick.initial{padding-bottom:8px}.composer{margin-bottom:7px}.panel>footer{padding-bottom:7px}}:host{--pt-chat-background:#f7f5f0;--pt-chat-surface:#fff;--pt-chat-border:#d7d2c9;--pt-chat-muted:#68655f;--pt-chat-radius:0px}.panel{background:var(--pt-chat-background);border-color:var(--pt-chat-border);border-radius:var(--pt-chat-radius)}.message.assistant>div>p,.recommendation,.quick button,.composer{background:var(--pt-chat-surface)}.message.assistant>div>p,.recommendation,.quick button,.composer{border-color:var(--pt-chat-border)}.recommendation div:nth-child(2)>p,.welcome p{color:var(--pt-chat-muted)}.recommendation .add{background:var(--pt-chat-text,#171715);border-color:var(--pt-chat-text,#171715);color:var(--pt-chat-surface,#fff)}@media(prefers-reduced-motion:reduce){.typing span{animation:none}}`;
+      return `:host{--pt-accent:var(--pt-chat-accent,${safe(accent)});position:fixed;right:var(--pt-chat-right,24px);bottom:var(--pt-chat-bottom,24px);z-index:var(--pt-chat-z-index,2147483000);font-family:var(--pt-chat-font-family,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);color:var(--pt-chat-text,#171715);line-height:1.45;contain:style}:host *{box-sizing:border-box}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.launcher{width:230px;min-height:64px;border:0;border-radius:2px;background:var(--pt-accent);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 14px;box-shadow:0 15px 42px rgba(0,0,0,.25);cursor:pointer;text-align:left}.launcher-mark,.avatar,.mini-avatar{display:grid;place-items:center;border:1px solid currentColor;font-family:Georgia,serif}.launcher-mark{width:36px;height:36px;font-size:20px}.launcher span:nth-child(2){display:grid;flex:1}.launcher strong{font:600 12px/1.3 inherit;letter-spacing:.02em}.launcher small{font-size:10px;color:rgba(255,255,255,.65)}.launcher i{font-style:normal;font-size:20px}.panel{position:absolute;right:0;bottom:0;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#f7f5f0;border:1px solid #d7d2c9;box-shadow:0 24px 70px rgba(0,0,0,.27);display:none;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden}.panel.is-open{display:grid}.panel header{background:var(--pt-accent);color:#fff;min-height:72px;padding:13px 17px;display:flex;justify-content:space-between;align-items:center}.panel header>div{display:flex;gap:12px;align-items:center}.avatar{width:38px;height:38px;font-size:20px}.panel header p{display:grid;margin:0}.panel header strong{font-family:Georgia,serif;font-size:16px;font-weight:400}.panel header small{font-size:10px;color:rgba(255,255,255,.68);margin-top:3px}.panel header small i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#87bd8b;margin-right:4px}.close{border:0;background:transparent;color:#fff;font-size:29px;line-height:1;cursor:pointer}.conversation{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:22px 18px 14px;scrollbar-width:thin}.conversation.has-messages{padding-top:8px}.conversation.has-messages .welcome,.conversation.has-messages .quick.initial{display:none}.welcome{text-align:center;border-bottom:1px solid #dfdbd3;padding:4px 15px 20px}.welcome-mark{display:grid;place-items:center;margin:0 auto 11px;border:1px solid #171715;width:40px;height:40px;font:22px Georgia,serif}.welcome h2{font:400 27px/1.1 Georgia,serif;margin:0 0 9px}.welcome p{font-size:12px;color:#65635f;margin:0}.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.quick.initial{justify-content:center;padding:4px 0 15px}.quick button{border:1px solid #cbc6bd;background:#fff;border-radius:20px;padding:8px 11px;font:500 10px inherit;cursor:pointer;color:#3c3b38}.quick button:hover{border-color:#171715}.message{margin:12px 0}.message>p,.message.assistant>div>p{margin:0;padding:12px 14px;font-size:13px;white-space:pre-line}.message.user{display:flex;justify-content:flex-end}.message.user>p{background:var(--pt-accent);color:#fff;max-width:82%;border-radius:13px 13px 2px 13px}.message.assistant{display:grid;grid-template-columns:25px 1fr;gap:8px;align-items:start}.message.assistant>div>p{background:#fff;border:1px solid #e0dcd4;border-radius:2px 13px 13px 13px}.mini-avatar{width:25px;height:25px;font:13px Georgia,serif}.recommendations-list{display:grid;gap:10px;margin-top:10px}.recommendation{background:#fff;border:1px solid #dcd7ce;padding:10px;display:grid;grid-template-columns:86px 1fr;gap:9px}.recommendation-image{width:86px;height:112px;background-repeat:no-repeat;background-color:#ddd6cc}.recommendation h3{font:400 16px/1.15 Georgia,serif;margin:3px 0}.recommendation small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#77736c}.recommendation strong{font-size:11px}.recommendation div:nth-child(2)>p{font-size:10px;color:#68655f;margin:7px 0 0}.recommendation button{grid-column:1/-1;min-height:34px;text-transform:uppercase;font:600 9px inherit;letter-spacing:.08em;cursor:pointer}.recommendation .view{background:#fff;border:1px solid #171715}.recommendation .add{background:#171715;color:#fff;border:1px solid #171715}.typing{display:flex;align-items:center;gap:4px;margin:16px 0 10px 33px}.typing span{width:6px;height:6px;border-radius:50%;background:#777;animation:pulse 1.1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}.typing em{font:normal 9px inherit;color:#777;margin-left:5px}.typing[hidden]{display:none}@keyframes pulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.composer{margin:0 14px 10px;border:1px solid #c9c4bb;background:#fff;display:grid;grid-template-columns:1fr 41px;align-items:end}.composer textarea{resize:none;border:0;outline:0;min-height:51px;max-height:90px;padding:16px 12px;background:transparent;font:13px inherit}.composer button{width:34px;height:34px;margin:0 6px 8px 0;border:0;border-radius:50%;background:var(--pt-accent);color:#fff;font-size:19px;cursor:pointer}.panel>footer{text-align:center;padding:0 10px 10px;color:#969188;text-transform:uppercase;font-size:8px;letter-spacing:.13em}.panel>footer span{color:#171715;font-size:11px}@media(max-width:560px){:host{right:12px;bottom:12px}.launcher{width:58px;height:58px;min-height:58px;padding:10px;border-radius:50%}.launcher span:nth-child(2),.launcher i{display:none}.launcher-mark{border:0}.panel{position:fixed!important;inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))!important;width:calc(100vw - 16px)!important;min-width:0!important;max-width:calc(100vw - 16px)!important;height:calc(100dvh - 16px)!important;max-height:calc(100dvh - 16px)!important;border:1px solid #d7d2c9}.conversation{padding-left:14px;padding-right:14px}}@media(max-height:620px){.panel header{min-height:60px;padding-top:9px;padding-bottom:9px}.conversation{padding-top:10px}.welcome-mark{display:none}.welcome h2{font-size:23px}.welcome{padding-top:0;padding-bottom:12px}.quick.initial{padding-bottom:8px}.composer{margin-bottom:7px}.panel>footer{padding-bottom:7px}}:host{--pt-chat-background:#f7f5f0;--pt-chat-surface:#fff;--pt-chat-border:#d7d2c9;--pt-chat-muted:#68655f;--pt-chat-radius:0px}.panel{background:var(--pt-chat-background);border-color:var(--pt-chat-border);border-radius:var(--pt-chat-radius)}.message.assistant>div>p,.recommendation,.quick button,.composer{background:var(--pt-chat-surface)}.message.assistant>div>p,.recommendation,.quick button,.composer{border-color:var(--pt-chat-border)}.recommendation div:nth-child(2)>p,.welcome p{color:var(--pt-chat-muted)}.recommendation .add{background:var(--pt-chat-text,#171715);border-color:var(--pt-chat-text,#171715);color:var(--pt-chat-surface,#fff)}@media(prefers-reduced-motion:reduce){.typing span{animation:none}}`;
     }
   }
 

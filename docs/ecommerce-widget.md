@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -47,6 +47,10 @@ browser-only publishable key with:
 - exact HTTPS origins (localhost HTTP is development-only),
 - `browser_only=true`,
 - an appropriate key rate limit.
+
+Resuming a persisted conversation does not grant the public key broad read
+access. History reads require both the short-lived browser token and the opaque
+resume capability bound to that session.
 
 The key is used only for `/api/v1/browser/chat/token`. The returned bearer is
 kept in memory for 15 minutes and refreshed before expiry. Every session
@@ -86,6 +90,8 @@ tool to the PromptRails agent so it searches current product data server-side.
 The widget accepts only generic UI `product`, `resource.open`, and `cart.add`
 kinds and ignores unknown actions.
 
+It also renders declarative `order`, `order_tracking`, and `status` resources as inert status cards. No model-provided script or navigation URL is executed.
+
 ## CSS customization
 
 CSS custom properties cross the Shadow DOM host boundary:
@@ -109,6 +115,8 @@ promptrails-shop-assistant {
   --pt-chat-z-index: 2147483000;
 }
 ```
+
+Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, and `status-card`. Use `style-nonce` under a nonce-based CSP.
 
 For a fully custom theme, set `stylesheet-url` to an HTTPS or same-site CSS
 file. It is loaded inside the Shadow DOM after the built-in styles, so scoped
@@ -137,5 +145,50 @@ document.addEventListener("promptrails:session-new", () => {
 });
 ```
 
+The component also exposes a typed imperative API:
+
+```js
+const assistant = document.querySelector("promptrails-shop-assistant");
+assistant.contextProvider = () => ({ productId: window.currentProductId });
+assistant.updateContext({ campaign: "summer" });
+assistant.open();
+await assistant.send("Bu ürünü tamamlayan bir çanta bul");
+await assistant.newSession();
+```
+
+Use `locale="en-US"` for the built-in English dictionary or pass a JSON `translations` attribute to override individual labels. Product cards support size, color, and quantity selection before emitting `promptrails:cart-add`.
+
 Event payloads never execute model-provided JavaScript or URLs. Product names,
 prices, images, and slugs are resolved from the host catalog by ID.
+
+## ESM and React
+
+Importing the ESM entry registers the same framework-neutral custom element:
+
+```ts
+import "@promptrails/ai-chat/ecommerce";
+```
+
+React applications can use the typed adapter and keep the imperative API on a ref:
+
+```tsx
+import { useRef } from "react";
+import { ShopAssistant } from "@promptrails/ai-chat/ecommerce/react";
+import type { PromptRailsShopAssistantElement } from "@promptrails/ai-chat/ecommerce";
+
+export function StorefrontAssistant() {
+  const assistant = useRef<PromptRailsShopAssistantElement>(null);
+  return (
+    <ShopAssistant
+      ref={assistant}
+      apiKey="BROWSER_ONLY_CHAT_KEY"
+      agentId="AGENT_KSUID"
+      catalogUrl="/api/catalog"
+      contextProvider={() => ({ path: location.pathname })}
+    />
+  );
+}
+```
+
+Release assets include source maps and `integrity.json` with SHA-384 hashes for
+the two global bundles and the shared stylesheet.

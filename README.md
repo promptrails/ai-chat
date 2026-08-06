@@ -16,6 +16,15 @@ Works with **PromptRails**, **OpenAI**, or any custom SSE/WebSocket backend.
 - **Streaming** — SSE and WebSocket support
 - **TypeScript** — Full type safety
 
+## Documentation
+
+- [Live documentation and demos](https://promptrails.github.io/ai-chat/#demo)
+- [Architecture and security model](docs/architecture.md)
+- [API reference](docs/api-reference.md)
+- [Generic browser widget](docs/browser-widget.md)
+- [Ecommerce widget](docs/ecommerce-widget.md)
+- [Migrating to v0.6](docs/migration-v0.6.md)
+
 ## Installation
 
 ```bash
@@ -33,7 +42,7 @@ key in a storefront.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"
@@ -49,7 +58,7 @@ key in a storefront.
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
@@ -82,6 +91,9 @@ Widget API:
 PromptRailsChat.open();    // Open the chat panel
 PromptRailsChat.close();   // Close the chat panel
 PromptRailsChat.toggle();  // Toggle open/close
+await PromptRailsChat.send("Track my order");
+await PromptRailsChat.newSession();
+PromptRailsChat.updateContext({ accountTier: "gold" });
 PromptRailsChat.destroy(); // Remove from DOM
 ```
 
@@ -92,7 +104,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.5.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.6.0/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -113,9 +125,15 @@ React and talks directly to PromptRails' public browser chat runtime:
 The publishable key must have exactly `chat:write`, an agent allowlist, exact
 browser origins, and `browser_only=true`. The widget exchanges it for a
 15-minute memory-only bearer, refreshes automatically, and resumes only one
-session with an origin/key-bound resume secret. See
+session with an origin/key-bound resume secret. Persisted history does not need
+a general `read` permission on the public key: listing messages requires both
+the short-lived token and that session's resume capability. See
 [the ecommerce widget guide](docs/ecommerce-widget.md) for theming, events,
 catalog shape, and security boundaries.
+
+For bundled apps, import `@promptrails/ai-chat/ecommerce` to register the Web
+Component or use the typed `ShopAssistant` adapter from
+`@promptrails/ai-chat/ecommerce/react`.
 
 ### 2. React Component
 

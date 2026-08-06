@@ -8,7 +8,7 @@ export default defineConfig({
   outExtension: () => ({ js: ".global.js" }),
   noExternal: [/.*/],
   minify: true,
-  sourcemap: false,
+  sourcemap: true,
   platform: "browser",
   target: "es2020",
   treeshake: true,

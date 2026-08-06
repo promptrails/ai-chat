@@ -1,0 +1,40 @@
+{
+  "products": [
+    {
+      "id": "linen-dress",
+      "slug": "linen-midi-dress",
+      "name": "Linen Midi Dress",
+      "category": "Dresses",
+      "price": 180,
+      "description": "A relaxed linen silhouette for warm days.",
+      "material": "European linen",
+      "colors": ["Black", "Natural"],
+      "sizes": ["S", "M", "L"],
+      "tags": ["new", "minimal", "summer"]
+    },
+    {
+      "id": "wool-blazer",
+      "slug": "tailored-wool-blazer",
+      "name": "Tailored Wool Blazer",
+      "category": "Tailoring",
+      "price": 240,
+      "description": "Soft-shouldered tailoring for office and evening.",
+      "material": "Responsible wool",
+      "colors": ["Black", "Camel"],
+      "sizes": ["S", "M", "L"],
+      "tags": ["office", "evening", "timeless"]
+    },
+    {
+      "id": "leather-tote",
+      "slug": "structured-leather-tote",
+      "name": "Structured Leather Tote",
+      "category": "Bags",
+      "price": 150,
+      "description": "A compact everyday tote with a clean profile.",
+      "material": "Leather",
+      "colors": ["Black", "Burgundy"],
+      "sizes": ["One size"],
+      "tags": ["everyday", "work"]
+    }
+  ]
+}

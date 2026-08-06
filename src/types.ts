@@ -32,6 +32,7 @@ export type StreamEventType =
   | "tool_start"
   | "tool_end"
   | "thinking"
+  | "ui"
   | "execution"
   | "status"
   | "error"
@@ -53,6 +54,8 @@ export interface StreamEvent {
   thinking?: string;
   /** done payload — final output produced by the execution */
   output?: unknown;
+  /** ui payload — safe, declarative render instructions emitted by PromptRails. */
+  ui?: Record<string, unknown>;
 }
 
 export type ExecutionStatus =
@@ -241,4 +244,46 @@ export interface WidgetConfig {
   width?: number;
   height?: number;
   zIndex?: number;
+  /** CSP nonce copied to the Shadow DOM style element. */
+  styleNonce?: string;
+  /** BCP-47 locale used by built-in labels. Defaults to the document language. */
+  locale?: string;
+  /** Structured context added to each browser message without changing visible text. */
+  contextProvider?: () => Record<string, unknown> | Promise<Record<string, unknown>>;
+  /** Host-owned widget lifecycle and analytics hook. */
+  onEvent?: (event: WidgetEvent) => void;
+  labels?: Partial<WidgetLabels>;
+}
+
+export interface WidgetLabels {
+  open: string;
+  close: string;
+  send: string;
+  newSession: string;
+  helpful: string;
+  notHelpful: string;
+  empty: string;
+  offline: string;
+}
+
+export interface WidgetEvent {
+  type:
+    | "open"
+    | "close"
+    | "message.sent"
+    | "message.completed"
+    | "message.failed"
+    | "session.new"
+    | "feedback";
+  detail?: Record<string, unknown>;
+}
+
+export interface WidgetController {
+  open(): void;
+  close(): void;
+  toggle(): void;
+  send(content: string): Promise<void>;
+  newSession(): Promise<void>;
+  updateContext(context: Record<string, unknown>): void;
+  destroy(): void;
 }

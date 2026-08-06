@@ -1,19 +1,20 @@
-import { createElement } from "react";
+import { createElement, createRef, type Ref } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { WidgetConfig } from "../types";
-import { Widget } from "./widget";
+import { Widget, type WidgetHandle } from "./widget";
 import { WIDGET_CSS } from "./widget-styles";
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let widgetRef: React.RefObject<WidgetHandle | null> | null = null;
 
 /**
  * Mount the widget into the DOM using Shadow DOM for style isolation.
  */
-export function mount(config: WidgetConfig): void {
+export function mount(config: WidgetConfig): WidgetHandle {
   if (root) {
     console.warn("@promptrails/ai-chat: Widget is already mounted.");
-    return;
+    throw new Error("@promptrails/ai-chat: Widget is already mounted.");
   }
 
   // Create container element (fixed position, zero size to prevent scroll)
@@ -26,6 +27,7 @@ export function mount(config: WidgetConfig): void {
   container.style.height = "0";
   container.style.overflow = "visible";
   container.style.zIndex = String(config.zIndex ?? 2147483000);
+  container.setAttribute("data-promptrails-widget", "");
   document.body.appendChild(container);
 
   // Create shadow DOM
@@ -34,20 +36,13 @@ export function mount(config: WidgetConfig): void {
   // Inject styles
   const styleEl = document.createElement("style");
   styleEl.textContent = WIDGET_CSS;
+  if (config.styleNonce) styleEl.nonce = config.styleNonce;
 
   // Apply custom CSS variables
-  if (config.primaryColor) {
-    styleEl.textContent += `\n:host { --prc-primary-color: ${config.primaryColor}; }`;
-  }
-  if (config.width) {
-    styleEl.textContent += `\n:host { --prc-panel-width: ${config.width}px; }`;
-  }
-  if (config.height) {
-    styleEl.textContent += `\n:host { --prc-panel-height: ${config.height}px; }`;
-  }
-  if (config.zIndex) {
-    styleEl.textContent += `\n:host { --prc-z-index: ${config.zIndex}; }`;
-  }
+  if (config.primaryColor) container.style.setProperty("--prc-primary-color", config.primaryColor);
+  if (config.width) container.style.setProperty("--prc-panel-width", `${config.width}px`);
+  if (config.height) container.style.setProperty("--prc-panel-height", `${config.height}px`);
+  if (config.zIndex) container.style.setProperty("--prc-z-index", String(config.zIndex));
 
   shadow.appendChild(styleEl);
 
@@ -64,7 +59,17 @@ export function mount(config: WidgetConfig): void {
 
   // Render
   root = createRoot(mountPoint);
-  root.render(createElement(Widget, { config }));
+  widgetRef = createRef<WidgetHandle>();
+  root.render(createElement(Widget, { config, ref: widgetRef as Ref<WidgetHandle> }));
+
+  return {
+    open: () => widgetRef?.current?.open(),
+    close: () => widgetRef?.current?.close(),
+    toggle: () => widgetRef?.current?.toggle(),
+    send: async (content) => widgetRef?.current?.send(content),
+    newSession: async () => widgetRef?.current?.newSession(),
+    updateContext: (context) => widgetRef?.current?.updateContext(context),
+  };
 }
 
 /**
@@ -79,4 +84,5 @@ export function unmount(): void {
     container.remove();
     container = null;
   }
+  widgetRef = null;
 }

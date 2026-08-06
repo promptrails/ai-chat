@@ -68,7 +68,11 @@ describe("createPromptRailsBrowserProvider", () => {
       baseUrl: "https://api.example.test",
       workspaceId: "workspace_1",
     });
-    const result = await provider.sendMessage({ content: "Selam" });
+    const result = await provider.sendMessage({
+      content: "Selam",
+      context: { path: "/urun/elbise" },
+      idempotencyKey: "message-1",
+    });
 
     expect(result.message.content).toBe("Merhaba");
     expect(result.executionId).toBe("exec_1");
@@ -77,6 +81,11 @@ describe("createPromptRailsBrowserProvider", () => {
     expect(mockFetch.mock.calls[0][1].headers["X-API-Key"]).toBe("browser-key");
     expect(mockFetch.mock.calls[2][1].headers.Authorization).toBe("Bearer short-lived-token");
     expect(mockFetch.mock.calls[2][1].headers["X-Chat-Resume-Token"]).toBe(RESUME_TOKEN);
+    expect(JSON.parse(mockFetch.mock.calls[2][1].body)).toEqual({
+      content: "Selam",
+      client_context: { path: "/urun/elbise" },
+      idempotency_key: "message-1",
+    });
 
     const persisted = JSON.parse(
       testStorage.getItem("promptrails-chat-widget:workspace_1:agent_1") || "{}",

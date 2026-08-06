@@ -2,14 +2,19 @@ interface BubbleProps {
   isOpen: boolean;
   position: "bottom-right" | "bottom-left";
   onClick: () => void;
+  openLabel?: string;
+  closeLabel?: string;
 }
 
-export function Bubble({ isOpen, position, onClick }: BubbleProps) {
+export function Bubble({ isOpen, position, onClick, openLabel, closeLabel }: BubbleProps) {
   return (
     <button
       className={`prc-widget-bubble prc-widget-bubble--${position} ${isOpen ? "prc-widget-bubble--open" : ""}`}
       onClick={onClick}
-      aria-label={isOpen ? "Close chat" : "Open chat"}
+      aria-label={isOpen ? closeLabel || "Close chat" : openLabel || "Open chat"}
+      aria-expanded={isOpen}
+      aria-controls="promptrails-chat-panel"
+      part="launcher"
     >
       {isOpen ? (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">

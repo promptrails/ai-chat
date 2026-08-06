@@ -12,6 +12,10 @@ export interface SendMessageParams {
   content: string;
   sessionId?: string;
   metadata?: Record<string, unknown>;
+  /** Untrusted client context delivered separately from visible message text. */
+  context?: Record<string, unknown>;
+  /** Stable retry key. Browser runtimes generate one when omitted. */
+  idempotencyKey?: string;
 }
 
 export interface SendMessageResult {

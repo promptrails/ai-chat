@@ -7,6 +7,35 @@ export { generateId, parseSSEStream, retryWithBackoff } from "./core";
 export { messagesReducer, initialState } from "./core";
 export type { MessagesState, MessagesAction } from "./core";
 
+// Browser-safe headless runtime
+export {
+  BrowserChatError,
+  createBrowserChatRuntime,
+  type BrowserChatRuntime,
+  type BrowserMessageContext,
+  type BrowserRuntimeConfig,
+  type BrowserRuntimeEvent,
+  type BrowserRuntimeMessage,
+  type BrowserSessionSnapshot,
+} from "./browser";
+export {
+  createChatUIRendererRegistry,
+  normalizeChatUI,
+  type ChatUIAction,
+  type ChatUIRenderer,
+  type ChatUIRendererRegistry,
+  type ChatUIResource,
+  type ChatUISuggestion,
+  type NormalizedChatUI,
+} from "./ui";
+export type {
+  CartAddDetail,
+  ProductViewDetail,
+  PromptRailsShopAssistantElement,
+  ShopAssistantContext,
+  ShopAssistantEventMap,
+} from "./ecommerce/types";
+
 // Components
 export {
   ChatWindow,
@@ -62,4 +91,7 @@ export type {
   ApprovalCardProps,
   MessageInputProps,
   WidgetConfig,
+  WidgetController,
+  WidgetEvent,
+  WidgetLabels,
 } from "./types";

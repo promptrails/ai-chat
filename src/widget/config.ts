@@ -37,6 +37,8 @@ export function parseScriptTagConfig(): Partial<WidgetConfig> | null {
     width: script.dataset.width ? parseInt(script.dataset.width, 10) : undefined,
     height: script.dataset.height ? parseInt(script.dataset.height, 10) : undefined,
     zIndex: script.dataset.zIndex ? parseInt(script.dataset.zIndex, 10) : undefined,
+    styleNonce: script.dataset.styleNonce,
+    locale: script.dataset.locale,
   };
 }
 
@@ -58,6 +60,31 @@ export function resolveConfig(config: Partial<WidgetConfig>): WidgetConfig {
     throw new Error("@promptrails/ai-chat: provider.agentId is required for PromptRails provider.");
   }
 
+  const locale =
+    config.locale || (typeof document !== "undefined" ? document.documentElement.lang : "") || "en";
+  const turkish = locale.toLocaleLowerCase().startsWith("tr");
+  const defaults = turkish
+    ? {
+        open: "Sohbeti aç",
+        close: "Sohbeti kapat",
+        send: "Mesajı gönder",
+        newSession: "Yeni sohbet",
+        helpful: "Yardımcı oldu",
+        notHelpful: "Yardımcı olmadı",
+        empty: "Bir sohbet başlatın",
+        offline: "Çevrimdışısınız. Bağlantınızı kontrol edin.",
+      }
+    : {
+        open: "Open chat",
+        close: "Close chat",
+        send: "Send message",
+        newSession: "New conversation",
+        helpful: "Helpful",
+        notHelpful: "Not helpful",
+        empty: "Start a conversation",
+        offline: "You are offline. Check your connection.",
+      };
+
   return {
     provider: config.provider as WidgetConfig["provider"],
     position: config.position ?? "bottom-right",
@@ -68,12 +95,17 @@ export function resolveConfig(config: Partial<WidgetConfig>): WidgetConfig {
     persistSession: config.persistSession ?? true,
     sessionMaxAge: config.sessionMaxAge,
     stylesheetUrl: config.stylesheetUrl,
-    newSessionLabel: config.newSessionLabel ?? "New conversation",
+    newSessionLabel: config.newSessionLabel ?? config.labels?.newSession ?? defaults.newSession,
     feedbackLabel: config.feedbackLabel ?? "Was this helpful?",
     errorMessage: config.errorMessage ?? "Chat is temporarily unavailable. Please try again.",
     greeting: config.greeting,
     width: config.width,
     height: config.height,
     zIndex: config.zIndex,
+    styleNonce: config.styleNonce,
+    locale,
+    contextProvider: config.contextProvider,
+    onEvent: config.onEvent,
+    labels: { ...defaults, ...config.labels },
   };
 }

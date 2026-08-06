@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .turbo/
+.vitest-cache/
+docs/assets/
+playwright-report/
+test-results/
