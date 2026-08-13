@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -92,6 +92,30 @@ Do not embed the complete catalog in the prompt. Attach a read-only HTTP API
 tool to the PromptRails agent so it searches current product data server-side.
 The widget accepts only generic UI `product`, `resource.open`, and `cart.add`
 kinds and ignores unknown actions.
+
+### Products from the structured response
+
+If the agent tool response is already the source of truth and includes the
+complete card fields, the browser does not need a second catalog endpoint:
+
+```html
+<promptrails-shop-assistant
+  product-source="response"
+  api-url="https://api.promptrails.ai"
+  agent-id="AGENT_KSUID"
+  api-key="BROWSER_ONLY_CHAT_KEY"
+></promptrails-shop-assistant>
+```
+
+This mode is opt-in. It accepts `id`, `name`, category, price, description,
+HTTP(S) product URL, HTTP(S) images, sizes, and colors from the structured
+response, strips markup, bounds text and list sizes, and ignores executable or
+unknown fields. Ticimax-style nested `category`, `price`, `images`, and
+`variants` values are normalized automatically. The `promptrails:product-view`
+event may include the sanitized `url`; the host must allowlist its own
+storefront origin before navigation. Default `product-source="catalog"`
+behavior remains unchanged and is preferable when the model output contains
+only product IDs.
 
 It also renders declarative `order`, `order_tracking`, and `status` resources as inert status cards. No model-provided script or navigation URL is executed.
 
@@ -190,8 +214,10 @@ Set `show-tool-activity="false"` to retain the generic typing indicator without 
 
 On mobile Safari the widget keeps composer and variant controls at a minimum 16px font size, preventing iOS from leaving the page auto-zoomed after focus. The fixed panel uses safe-area insets and does not rely on a competing viewport width declaration.
 
-Event payloads never execute model-provided JavaScript or URLs. Product names,
-prices, images, and slugs are resolved from the host catalog by ID.
+Event payloads never execute model-provided JavaScript or URLs. In the default
+catalog mode, product names, prices, images, and slugs are resolved from the
+host catalog by ID. In response mode, HTTP(S) fields are sanitized and emitted
+as inert data for the host to validate and handle.
 
 ## ESM and React
 

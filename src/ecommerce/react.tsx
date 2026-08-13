@@ -12,6 +12,7 @@ export interface ShopAssistantProps {
   apiKey?: string;
   agentId?: string;
   catalogUrl?: string;
+  productSource?: "catalog" | "response";
   brand?: string;
   assistantName?: string;
   assistantMark?: string;
@@ -34,6 +35,7 @@ const attributes = [
   ["apiKey", "api-key"],
   ["agentId", "agent-id"],
   ["catalogUrl", "catalog-url"],
+  ["productSource", "product-source"],
   ["brand", "brand"],
   ["assistantName", "assistant-name"],
   ["assistantMark", "assistant-mark"],

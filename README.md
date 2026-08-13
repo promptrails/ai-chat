@@ -43,7 +43,7 @@ key in a storefront.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"
@@ -59,7 +59,7 @@ key in a storefront.
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
@@ -105,7 +105,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -131,6 +131,12 @@ a general `read` permission on the public key: listing messages requires both
 the short-lived token and that session's resume capability. See
 [the ecommerce widget guide](docs/ecommerce-widget.md) for theming, events,
 catalog shape, and security boundaries.
+
+When the agent's read-only commerce tool already returns complete product
+records, set `product-source="response"` and omit `catalog-url`. This explicit
+mode sanitizes an allowlist of card fields from structured output and avoids a
+duplicate browser catalog request. The host must still validate emitted product
+URLs against its own storefront origin before navigating.
 
 For bundled apps, import `@promptrails/ai-chat/ecommerce` to register the Web
 Component or use the typed `ShopAssistant` adapter from

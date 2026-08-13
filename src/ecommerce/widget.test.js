@@ -141,6 +141,75 @@ describe("PromptRails ecommerce widget", () => {
     expect(style).not.toContain("javascript:");
   });
 
+  it("renders sanitized products directly from structured responses when explicitly enabled", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    await Promise.resolve();
+
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Size iki seçenek buldum.",
+        products: [{
+          id: "ticimax-42",
+          name: "<b>İpek Elbise</b>",
+          category: { id: "7", name: "Elbise" },
+          url: "https://www.example.com/ipek-elbise",
+          images: [{ url: "https://cdn.example.com/ipek-elbise.jpg" }],
+          price: { min: 3499, currency: "TRY" },
+          variants: [
+            { color: "Siyah", size: "S", stock: 2 },
+            { color: "Siyah", size: "M", stock: 1 },
+          ],
+          reason: "Davet stilinize uygun.",
+        }],
+      },
+    });
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(answer.products).toEqual([expect.objectContaining({
+      id: "ticimax-42",
+      name: "İpek Elbise",
+      category: "Elbise",
+      url: "https://www.example.com/ipek-elbise",
+      imageUrl: "https://cdn.example.com/ipek-elbise.jpg",
+      price: 3499,
+      sizes: ["S", "M"],
+      colors: ["Siyah"],
+    })]);
+  });
+
+  it("emits the allowlisted response product URL without requiring a browser catalog", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Pick",
+      products: [{
+        id: "product-1",
+        slug: "dress",
+        url: "https://www.example.com/dress",
+        name: "Dress",
+        category: "Dresses",
+        price: 100,
+      }],
+    }];
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:product-view", listener);
+    widget.paintMessages();
+
+    widget.shadowRoot.querySelector("[data-view]").click();
+
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+      detail: {
+        productId: "product-1",
+        slug: "dress",
+        url: "https://www.example.com/dress",
+      },
+    }));
+  });
+
   it("keeps structured page context out of the visible user message", async () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);

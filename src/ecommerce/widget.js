@@ -56,9 +56,72 @@ import { normalizeChatUI } from "../ui/protocol";
     const candidate = String(value ?? "").trim();
     return /^(https?:\/\/|\/|\.\.\/|\.\/)/.test(candidate) ? candidate : "";
   };
+  const boundedText = (value, maxLength = 500) => plainText(value).slice(0, maxLength);
+  const uniqueText = (values, maxItems = 20) => [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => boundedText(value, 120))
+    .filter(Boolean))].slice(0, maxItems);
+  const finiteNumber = (...values) => {
+    for (const value of values) {
+      const number = Number(value);
+      if (Number.isFinite(number) && number >= 0) return number;
+    }
+    return 0;
+  };
+  const firstImageUrl = (value) => {
+    const images = Array.isArray(value) ? value : value ? [value] : [];
+    for (const image of images) {
+      const candidate = typeof image === "string" ? image : image?.url ?? image?.src ?? image?.image_url;
+      const normalized = mediaUrl(candidate);
+      if (normalized) return normalized;
+    }
+    return "";
+  };
+  const responseProduct = (entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const attributes = entry.attributes && typeof entry.attributes === "object" && !Array.isArray(entry.attributes)
+      ? { ...entry, ...entry.attributes }
+      : entry;
+    const id = boundedText(attributes.id ?? attributes.product_id ?? attributes.urun_id, 160);
+    const name = boundedText(attributes.name ?? attributes.title ?? attributes.product_name ?? attributes.urun_adi, 240);
+    if (!id || !name) return null;
+    const categoryValue = attributes.category ?? attributes.kategori;
+    const category = boundedText(
+      typeof categoryValue === "object" ? categoryValue?.name ?? categoryValue?.title : categoryValue,
+      160,
+    );
+    const priceValue = attributes.price ?? attributes.fiyat;
+    const price = finiteNumber(
+      typeof priceValue === "object" ? priceValue?.min : priceValue,
+      priceValue?.amount,
+      priceValue?.value,
+      attributes.sale_price,
+    );
+    const variants = Array.isArray(attributes.variants) ? attributes.variants : [];
+    const sizes = uniqueText([
+      ...(Array.isArray(attributes.sizes) ? attributes.sizes : []),
+      ...variants.map((variant) => variant?.size).filter(Boolean),
+    ]);
+    const colors = uniqueText([
+      ...(Array.isArray(attributes.colors) ? attributes.colors : []),
+      ...variants.map((variant) => variant?.color).filter(Boolean),
+    ]);
+    const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
+    return {
+      id,
+      slug: boundedText(attributes.slug, 200) || id,
+      url,
+      name,
+      category,
+      description: boundedText(attributes.description ?? attributes.aciklama, 800),
+      price,
+      imageUrl: firstImageUrl(attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images),
+      sizes,
+      colors,
+    };
+  };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "tool-labels", "close-on-product-view", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "tool-labels", "close-on-product-view", "translations"];
     }
 
     constructor() {
@@ -89,7 +152,8 @@ import { normalizeChatUI } from "../ui/protocol";
       this.bind();
       this.restore();
       this.hydrationPromise = this.hydrateSession();
-      this.loadCatalog().finally(() => { this.ready = true; });
+      (this.config.productSource === "response" ? Promise.resolve() : this.loadCatalog())
+        .finally(() => { this.ready = true; });
       window.addEventListener("keydown", this.onWindowKey);
       window.addEventListener("promptrails:cart-confirmed", this.onCartConfirmed);
       window.addEventListener("promptrails:cart-failed", this.onCartFailed);
@@ -130,6 +194,7 @@ import { normalizeChatUI } from "../ui/protocol";
         agentId: this.getAttribute("agent-id")?.trim() ?? "",
         apiKey: this.getAttribute("api-key")?.trim() ?? "",
         catalogUrl: this.getAttribute("catalog-url")?.trim() || "/api/katalog",
+        productSource: this.getAttribute("product-source") === "response" ? "response" : "catalog",
         brand,
         assistantName: this.getAttribute("assistant-name")?.trim() || `${brand} Stil Danışmanı`,
         assistantMark: plainText(this.getAttribute("assistant-mark") || brand).slice(0, 2).toLocaleUpperCase("tr-TR") || "AI",
@@ -251,10 +316,15 @@ import { normalizeChatUI } from "../ui/protocol";
       this.root.querySelectorAll("[data-quick]").forEach((button) => { button.onclick = () => this.send(button.dataset.quick); });
       this.root.querySelectorAll("[data-view]").forEach((button) => { button.onclick = () => {
         if (this.config.closeOnProductView) this.toggle(false);
-        this.emit("promptrails:product-view", { slug: button.dataset.view, productId: button.dataset.productId });
+        const product = this.findProduct(button.dataset.productId);
+        this.emit("promptrails:product-view", {
+          slug: button.dataset.view,
+          productId: button.dataset.productId,
+          ...(product?.url ? { url: product.url } : {}),
+        });
       }; });
       this.root.querySelectorAll("[data-add]").forEach((button) => { button.onclick = () => {
-        const product = this.catalog.find((item) => item.id === button.dataset.add);
+        const product = this.findProduct(button.dataset.add);
         if (!product) return;
         button.disabled = true;
         button.dataset.idleLabel = button.textContent || this.labels.add;
@@ -330,6 +400,12 @@ import { normalizeChatUI } from "../ui/protocol";
       } catch {
         this.catalog = [];
       }
+    }
+
+    findProduct(id) {
+      const expected = String(id ?? "");
+      return this.catalog.find((item) => String(item.id) === expected)
+        || this.messages.flatMap((message) => message.products || []).find((item) => String(item.id) === expected);
     }
 
     restore() {
@@ -462,10 +538,12 @@ import { normalizeChatUI } from "../ui/protocol";
       const requested = resources.length ? resources : Array.isArray(value.products) ? value.products : Array.isArray(value.urunler) ? value.urunler : [];
       const actions = genericUI?.actions || [];
       const products = requested.map((entry) => {
-        const id = typeof entry === "string" ? entry : entry.id ?? entry.product_id;
-        const product = this.catalog.find((item) => item.id === id);
+        const id = boundedText(typeof entry === "string" ? entry : entry.id ?? entry.product_id, 160);
         const attributes = entry?.attributes && typeof entry.attributes === "object" ? entry.attributes : entry;
-        const resourceActions = actions.filter((action) => action.resourceId === id);
+        const product = this.config.productSource === "response"
+          ? responseProduct(entry)
+          : this.catalog.find((item) => String(item.id) === id);
+        const resourceActions = actions.filter((action) => String(action.resourceId) === id);
         const viewAction = resourceActions.find((action) => action.kind === "resource.open");
         const addAction = resourceActions.find((action) => action.kind === "cart.add");
         return product ? {
