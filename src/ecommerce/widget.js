@@ -105,6 +105,10 @@ import { normalizeChatUI } from "../ui/protocol";
       ...(Array.isArray(attributes.colors) ? attributes.colors : []),
       ...variants.map((variant) => variant?.color).filter(Boolean),
     ]);
+    const requestedSize = boundedText(attributes.selected_size ?? attributes.selectedSize, 120);
+    const requestedColor = boundedText(attributes.selected_color ?? attributes.selectedColor, 120);
+    const selectedSize = sizes.includes(requestedSize) ? requestedSize : "";
+    const selectedColor = colors.includes(requestedColor) ? requestedColor : "";
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
     return {
       id,
@@ -117,6 +121,8 @@ import { normalizeChatUI } from "../ui/protocol";
       imageUrl: firstImageUrl(attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images),
       sizes,
       colors,
+      selectedSize,
+      selectedColor,
     };
   };
 
@@ -330,18 +336,32 @@ import { normalizeChatUI } from "../ui/protocol";
         button.dataset.idleLabel = button.textContent || this.labels.add;
         button.textContent = this.labels.adding;
         const selected = this.selectedVariants?.[product.id] || {};
-        this.emit("promptrails:cart-add", { productId: product.id, slug: product.slug, size: selected.size || product.sizes?.[0], color: selected.color || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
+        this.emit("promptrails:cart-add", { productId: product.id, slug: product.slug, size: selected.size || product.selectedSize || product.sizes?.[0], color: selected.color || product.selectedColor || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
         window.clearTimeout(this.cartTimers.get(product.id));
         this.cartTimers.set(product.id, window.setTimeout(() => {
           this.cartFailed({ detail: { productId: product.id } });
           this.emit("promptrails:error", { code: "cart_confirmation_timeout", productId: product.id });
         }, 10_000));
       }; });
-      this.root.querySelectorAll("[data-variant]").forEach((select) => { select.onchange = () => {
-        this.selectedVariants ||= {};
-        this.selectedVariants[select.dataset.productId] ||= {};
-        this.selectedVariants[select.dataset.productId][select.dataset.variant] = select.value;
-      }; });
+      this.root.querySelectorAll("[data-variant]").forEach((select) => {
+        const product = this.findProduct(select.dataset.productId);
+        const initialValue = select.dataset.variant === "size"
+          ? product?.selectedSize
+          : select.dataset.variant === "color"
+            ? product?.selectedColor
+            : "";
+        if (initialValue && [...select.options].some((option) => option.value === initialValue)) {
+          select.value = initialValue;
+          this.selectedVariants ||= {};
+          this.selectedVariants[select.dataset.productId] ||= {};
+          this.selectedVariants[select.dataset.productId][select.dataset.variant] = initialValue;
+        }
+        select.onchange = () => {
+          this.selectedVariants ||= {};
+          this.selectedVariants[select.dataset.productId] ||= {};
+          this.selectedVariants[select.dataset.productId][select.dataset.variant] = select.value;
+        };
+      });
       this.root.querySelectorAll("[data-feedback]").forEach((button) => {
         button.onclick = () => this.submitFeedback(Number(button.dataset.messageIndex), Number(button.dataset.feedback));
       });
@@ -680,8 +700,8 @@ import { normalizeChatUI } from "../ui/protocol";
         <div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>
         <div><small>${safe(product.category)}</small><h3>${safe(product.name)}</h3><strong>${money.format(Number(product.price) || 0)}</strong><p>${safe(product.reason)}</p></div>
         ${(product.sizes?.length || product.colors?.length) ? `<div class="variants">
-          ${product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option>${safe(size)}</option>`).join("")}</select></label>` : ""}
-          ${product.colors?.length ? `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option>${safe(color)}</option>`).join("")}</select></label>` : ""}
+          ${product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option value="${safe(size)}"${size === product.selectedSize ? " selected" : ""}>${safe(size)}</option>`).join("")}</select></label>` : ""}
+          ${product.colors?.length ? `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option value="${safe(color)}"${color === product.selectedColor ? " selected" : ""}>${safe(color)}</option>`).join("")}</select></label>` : ""}
           <label><span>${safe(this.labels.quantity)}</span><select data-variant="quantity" data-product-id="${safe(product.id)}"><option>1</option><option>2</option><option>3</option></select></label>
         </div>` : ""}
         <div class="recommendation-actions">

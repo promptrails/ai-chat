@@ -161,6 +161,8 @@ describe("PromptRails ecommerce widget", () => {
             { color: "Siyah", size: "S", stock: 2 },
             { color: "Siyah", size: "M", stock: 1 },
           ],
+          selected_size: "M",
+          selected_color: "Siyah",
           reason: "Davet stilinize uygun.",
         }],
       },
@@ -176,7 +178,71 @@ describe("PromptRails ecommerce widget", () => {
       price: 3499,
       sizes: ["S", "M"],
       colors: ["Siyah"],
+      selectedSize: "M",
+      selectedColor: "Siyah",
     })]);
+  });
+
+  it("preselects validated response variants and uses them for cart events", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Pick",
+      products: [{
+        id: "product-38",
+        slug: "black-dress",
+        name: "Black Dress",
+        category: "Dresses",
+        price: 100,
+        sizes: ["34", "36", "38", "40"],
+        colors: ["Black", "Red"],
+        selectedSize: "38",
+        selectedColor: "Red",
+        canAdd: true,
+      }],
+    }];
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:cart-add", listener);
+
+    widget.paintMessages();
+
+    const selects = widget.shadowRoot.querySelectorAll("[data-variant]");
+    expect(selects[0].value).toBe("38");
+    expect(selects[1].value).toBe("Red");
+    widget.shadowRoot.querySelector("[data-add]").click();
+    expect(listener.mock.calls[0][0].detail).toMatchObject({
+      productId: "product-38",
+      size: "38",
+      color: "Red",
+      quantity: 1,
+    });
+  });
+
+  it("ignores selected variants that are not in the allowlisted options", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Pick",
+        products: [{
+          id: "product-1",
+          name: "Dress",
+          sizes: ["34", "36"],
+          colors: ["Black"],
+          selected_size: "38",
+          selected_color: "Red",
+        }],
+      },
+    });
+
+    expect(answer.products[0]).toEqual(expect.objectContaining({
+      selectedSize: "",
+      selectedColor: "",
+    }));
   });
 
   it("emits the allowlisted response product URL without requiring a browser catalog", () => {

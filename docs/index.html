@@ -704,7 +704,7 @@
     </div>
     <div class="install-cmd">
       <span class="dollar">$</span>
-      <span>npm install @promptrails/ai-chat@0.7.1</span>
+      <span>npm install @promptrails/ai-chat@0.7.2</span>
       <button onclick="navigator.clipboard.writeText('npm install @promptrails/ai-chat')" title="Copy">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
@@ -782,7 +782,7 @@
           </div>
           <pre id="script-code"><span class="code-comment">&lt;!-- Add to any website — no React needed --&gt;</span>
 <span class="code-tag">&lt;script</span>
-  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/widget.global.js"</span>
+  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/widget.global.js"</span>
   <span class="code-attr">data-provider</span>=<span class="code-string">"promptrails"</span>
   <span class="code-attr">data-api-key</span>=<span class="code-string">"BROWSER_ONLY_CHAT_KEY"</span>
   <span class="code-attr">data-base-url</span>=<span class="code-string">"https://api.promptrails.ai"</span>
@@ -1125,7 +1125,7 @@
         attrs += `\n  data-greeting="${greeting}"`;
       }
 
-      const code = kind === 'ecommerce' ? `<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/ecommerce.global.js" defer><\/script>
+      const code = kind === 'ecommerce' ? `<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/ecommerce.global.js" defer><\/script>
 
 <promptrails-shop-assistant
   api-url="${baseUrl}"
@@ -1136,7 +1136,7 @@
   locale="tr-TR"
   persist-session="true"
 ><\/promptrails-shop-assistant>` : `<script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/widget.global.js"
 ${attrs}
 ><\/script>`;
 

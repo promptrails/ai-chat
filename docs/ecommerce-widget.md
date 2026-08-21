@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.1/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -82,6 +82,8 @@ days. Use `persist-session="false"` on kiosks or shared devices.
   "material": "Viskon karışımı",
   "colors": ["Siyah"],
   "sizes": ["S", "M", "L"],
+  "selected_color": "Siyah",
+  "selected_size": "M",
   "tags": ["ofis", "akşam"],
   "imageUrl": "https://cdn.example.com/ece.jpg"
 }
@@ -116,6 +118,12 @@ event may include the sanitized `url`; the host must allowlist its own
 storefront origin before navigation. Default `product-source="catalog"`
 behavior remains unchanged and is preferable when the model output contains
 only product IDs.
+
+Use optional `selected_size` and `selected_color` fields when the shopper has
+already requested a specific variant. The widget preselects a value only when
+it is present in that product's sanitized `sizes` or `colors` list; invalid or
+hallucinated selections are ignored. Camel-case `selectedSize` and
+`selectedColor` aliases are also accepted.
 
 It also renders declarative `order`, `order_tracking`, and `status` resources as inert status cards. No model-provided script or navigation URL is executed.
 
