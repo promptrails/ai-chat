@@ -1,6 +1,7 @@
 import "./widget.js";
 
 export type {
+  ActionOpenDetail,
   CartAddDetail,
   ProductViewDetail,
   PromptRailsShopAssistantElement,

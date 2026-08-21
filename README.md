@@ -43,7 +43,7 @@ key in a storefront.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.3/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"
@@ -59,7 +59,7 @@ key in a storefront.
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.3/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
@@ -105,7 +105,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.3/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -120,6 +120,7 @@ React and talks directly to PromptRails' public browser chat runtime:
   assistant-mark="A"
   persist-session="true"
   session-max-age="86400"
+  allowed-action-origins='["https://api.whatsapp.com"]'
 ></promptrails-shop-assistant>
 ```
 
@@ -137,6 +138,11 @@ records, set `product-source="response"` and omit `catalog-url`. This explicit
 mode sanitizes an allowlist of card fields from structured output and avoids a
 duplicate browser catalog request. The host must still validate emitted product
 URLs against its own storefront origin before navigating.
+
+Standalone links use a separate, explicit boundary. The ecommerce widget only
+turns a declarative `resource.open` action or a URL in assistant text into a CTA
+when its exact origin appears in `allowed-action-origins` (same-origin links are
+allowed automatically). Other URLs remain inert text.
 
 For bundled apps, import `@promptrails/ai-chat/ecommerce` to register the Web
 Component or use the typed `ShopAssistant` adapter from

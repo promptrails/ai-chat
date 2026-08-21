@@ -19,12 +19,18 @@ export interface CartAddDetail extends ProductViewDetail {
   quantity: number;
 }
 
+export interface ActionOpenDetail {
+  url: string;
+  label: string;
+}
+
 export interface ShopAssistantEventMap {
   "promptrails:open": CustomEvent<Record<string, never>>;
   "promptrails:close": CustomEvent<Record<string, never>>;
   "promptrails:session-new": CustomEvent<Record<string, never>>;
   "promptrails:product-view": CustomEvent<ProductViewDetail>;
   "promptrails:cart-add": CustomEvent<CartAddDetail>;
+  "promptrails:action-open": CustomEvent<ActionOpenDetail>;
   "promptrails:feedback": CustomEvent<{ executionId: string; value: 1 | -1 }>;
   "promptrails:runtime": CustomEvent<BrowserRuntimeEvent>;
   "promptrails:error": CustomEvent<{ code: string }>;

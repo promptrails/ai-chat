@@ -141,6 +141,69 @@ describe("PromptRails ecommerce widget", () => {
     expect(style).not.toContain("javascript:");
   });
 
+  it("turns an allowlisted WhatsApp URL in assistant text into a safe CTA", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("allowed-action-origins", '["https://api.whatsapp.com"]');
+    document.body.appendChild(widget);
+
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Size yardımcı olalım: https://api.whatsapp.com/send?phone=905421257885&text=Bilgi%20Almak%20%C4%B0stiyorum",
+      },
+    });
+    widget.messages = [{ role: "assistant", ...answer }];
+    widget.paintMessages();
+
+    const link = widget.shadowRoot.querySelector("[data-action-url]");
+    expect(answer.text).toBe("Size yardımcı olalım:");
+    expect(link?.textContent).toContain("WhatsApp'tan yaz");
+    expect(link?.getAttribute("href")).toBe(
+      "https://api.whatsapp.com/send?phone=905421257885&text=Bilgi%20Almak%20%C4%B0stiyorum",
+    );
+    expect(link?.getAttribute("target")).toBe("_blank");
+    expect(link?.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("renders standalone structured open actions only for explicitly allowed origins", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("allowed-action-origins", '["https://help.example.com"]');
+    document.body.appendChild(widget);
+
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Destek seçenekleri",
+        ui: {
+          version: "1",
+          resources: [],
+          actions: [
+            { kind: "resource.open", label: "Destek", payload: { url: "https://help.example.com/contact" } },
+            { kind: "resource.open", label: "Blocked", payload: { url: "https://evil.example/phish" } },
+            { kind: "resource.open", label: "Script", payload: { url: "javascript:alert(1)" } },
+          ],
+          suggestions: [],
+        },
+      },
+    });
+
+    expect(answer.actions).toEqual([
+      { url: "https://help.example.com/contact", label: "Destek" },
+    ]);
+  });
+
+  it("keeps untrusted URLs as inert text instead of creating navigation", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    const answer = widget.normalizeAnswer({
+      output: { message: "Buraya tıklayın: https://evil.example/phish" },
+    });
+    widget.messages = [{ role: "assistant", ...answer }];
+    widget.paintMessages();
+
+    expect(answer.text).toContain("https://evil.example/phish");
+    expect(widget.shadowRoot.querySelector("[data-action-url]")).toBeNull();
+  });
+
   it("renders sanitized products directly from structured responses when explicitly enabled", async () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");

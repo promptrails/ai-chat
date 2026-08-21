@@ -57,6 +57,48 @@ import { normalizeChatUI } from "../ui/protocol";
     return /^(https?:\/\/|\/|\.\.\/|\.\/)/.test(candidate) ? candidate : "";
   };
   const boundedText = (value, maxLength = 500) => plainText(value).slice(0, maxLength);
+  const actionOrigins = (value) => stringList(value, []).map((entry) => {
+    try {
+      const parsed = new URL(entry, location.href);
+      return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.origin : "";
+    } catch {
+      return "";
+    }
+  }).filter(Boolean);
+  const allowedActionUrl = (value, allowedOrigins = []) => {
+    try {
+      const parsed = new URL(String(value ?? "").trim(), location.href);
+      const developmentHttp = parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
+      if (parsed.protocol !== "https:" && !developmentHttp) return "";
+      if (parsed.origin !== location.origin && !allowedOrigins.includes(parsed.origin)) return "";
+      return parsed.href;
+    } catch {
+      return "";
+    }
+  };
+  const actionLabel = (url, fallback, labels) => {
+    const custom = boundedText(fallback, 80);
+    if (custom) return custom;
+    try {
+      const hostname = new URL(url).hostname.toLowerCase();
+      if (hostname === "api.whatsapp.com" || hostname === "wa.me") return labels.whatsapp;
+    } catch { /* invalid URLs are filtered before labels are derived */ }
+    return labels.openLink;
+  };
+  const extractTextActions = (value, allowedOrigins, labels) => {
+    let message = String(value ?? "");
+    const actions = [];
+    for (const match of message.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+      const raw = match[0];
+      const candidate = raw.replace(/[),.;!?]+$/, "");
+      const url = allowedActionUrl(candidate, allowedOrigins);
+      if (!url || actions.some((action) => action.url === url)) continue;
+      actions.push({ url, label: actionLabel(url, "", labels) });
+      message = message.replace(raw, " ");
+      if (actions.length === 3) break;
+    }
+    return { text: plainText(message), actions };
+  };
   const uniqueText = (values, maxItems = 20) => [...new Set((Array.isArray(values) ? values : [])
     .map((value) => boundedText(value, 120))
     .filter(Boolean))].slice(0, maxItems);
@@ -127,7 +169,7 @@ import { normalizeChatUI } from "../ui/protocol";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "tool-labels", "close-on-product-view", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "tool-labels", "allowed-action-origins", "close-on-product-view", "translations"];
     }
 
     constructor() {
@@ -218,6 +260,7 @@ import { normalizeChatUI } from "../ui/protocol";
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
         showToolActivity: this.getAttribute("show-tool-activity") !== "false",
         toolLabels: stringMap(this.getAttribute("tool-labels")),
+        allowedActionOrigins: actionOrigins(this.getAttribute("allowed-action-origins")),
         closeOnProductView: this.getAttribute("close-on-product-view") !== "false",
       };
     }
@@ -232,6 +275,7 @@ import { normalizeChatUI } from "../ui/protocol";
         feedback: "Was this helpful?", helpful: "Helpful", notHelpful: "Not helpful",
         offline: "You are offline. Check your connection.", retry: "Try again",
         toolWorking: "Checking the relevant information…", toolComplete: "Information found. Preparing your answer…",
+        openLink: "Open link", whatsapp: "Message on WhatsApp",
       };
       const turkish = {
         open: "Sohbeti aç", close: "Sohbeti küçült", newChat: "Yeni sohbet başlat", online: "Çevrimiçi",
@@ -242,6 +286,7 @@ import { normalizeChatUI } from "../ui/protocol";
         feedback: "Bu öneri yardımcı oldu mu?", helpful: "Yardımcı oldu", notHelpful: "Yardımcı olmadı",
         offline: "Çevrimdışısınız. Bağlantınızı kontrol edin.", retry: "Tekrar deneyelim",
         toolWorking: "İlgili bilgileri kontrol ediyorum…", toolComplete: "Bilgileri buldum, yanıtınızı hazırlıyorum…",
+        openLink: "Bağlantıyı aç", whatsapp: "WhatsApp'tan yaz",
       };
       let custom = {};
       try { custom = JSON.parse(this.getAttribute("translations") || "{}"); } catch { /* invalid overrides are ignored */ }
@@ -364,6 +409,12 @@ import { normalizeChatUI } from "../ui/protocol";
       });
       this.root.querySelectorAll("[data-feedback]").forEach((button) => {
         button.onclick = () => this.submitFeedback(Number(button.dataset.messageIndex), Number(button.dataset.feedback));
+      });
+      this.root.querySelectorAll("[data-action-url]").forEach((link) => {
+        link.onclick = () => this.emit("promptrails:action-open", {
+          url: link.href,
+          label: link.textContent?.trim() || "",
+        });
       });
     }
 
@@ -557,6 +608,18 @@ import { normalizeChatUI } from "../ui/protocol";
       const statusCards = genericUI ? genericUI.resources.filter((resource) => ["order", "order_tracking", "status"].includes(resource.kind)).map((resource) => ({ id: resource.id, kind: resource.kind, ...resource.attributes })).slice(0, 3) : [];
       const requested = resources.length ? resources : Array.isArray(value.products) ? value.products : Array.isArray(value.urunler) ? value.urunler : [];
       const actions = genericUI?.actions || [];
+      const messageWithActions = extractTextActions(
+        value.message ?? value.mesaj ?? value.answer ?? "Seçkiden birkaç alternatif hazırladım.",
+        this.config.allowedActionOrigins,
+        this.labels,
+      );
+      const standaloneActions = actions.filter((action) => !action.resourceId && action.kind === "resource.open").map((action) => {
+        const url = allowedActionUrl(action.payload?.url ?? action.payload?.href, this.config.allowedActionOrigins);
+        return url ? { url, label: actionLabel(url, action.label, this.labels) } : null;
+      }).filter(Boolean);
+      const messageActions = [...standaloneActions, ...messageWithActions.actions]
+        .filter((action, index, all) => all.findIndex((candidate) => candidate.url === action.url) === index)
+        .slice(0, 3);
       const products = requested.map((entry) => {
         const id = boundedText(typeof entry === "string" ? entry : entry.id ?? entry.product_id, 160);
         const attributes = entry?.attributes && typeof entry.attributes === "object" ? entry.attributes : entry;
@@ -576,7 +639,8 @@ import { normalizeChatUI } from "../ui/protocol";
         } : null;
       }).filter(Boolean).slice(0, 3);
       return {
-        text: plainText(value.message ?? value.mesaj ?? value.answer ?? "Seçkiden birkaç alternatif hazırladım."),
+        text: messageWithActions.text,
+        actions: messageActions,
         products,
         statusCards,
         quickReplies: genericUI
@@ -688,7 +752,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.root.querySelector(".conversation")?.classList.toggle("has-messages", this.messages.length > 0);
       target.innerHTML = this.messages.map((message, index) => message.role === "user"
         ? `<article class="message user"><p>${safe(message.text)}</p></article>`
-        : `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><p>${safe(message.text)}</p>${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`).join("");
+        : `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><p>${safe(message.text)}</p>${this.actionMarkup(message.actions)}${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`).join("");
       this.bind();
       this.scroll(this.messages.at(-1)?.role === "assistant" ? "message" : "bottom");
     }
@@ -713,6 +777,10 @@ import { normalizeChatUI } from "../ui/protocol";
 
     statusMarkup(cards = []) {
       return cards.length ? `<div class="status-cards">${cards.map((card) => `<article class="status-card" part="card status-card"><small>${safe(card.kind === "order_tracking" ? this.labels.shipping : this.labels.order)}</small><h3>${safe(card.title || card.order_number || card.id)}</h3><p>${safe(card.message || card.status || "")}</p>${card.tracking_code ? `<strong>${safe(card.tracking_code)}</strong>` : ""}${card.estimated_delivery ? `<time>${safe(card.estimated_delivery)}</time>` : ""}</article>`).join("")}</div>` : "";
+    }
+
+    actionMarkup(actions = []) {
+      return actions.length ? `<div class="message-actions">${actions.map((action) => `<a part="action standalone-action" href="${safe(action.url)}" target="_blank" rel="noopener noreferrer" data-action-url="${safe(action.url)}">${safe(action.label)} <span aria-hidden="true">↗</span></a>`).join("")}</div>` : "";
     }
 
     quickMarkup(items = []) {
@@ -797,6 +865,24 @@ import { normalizeChatUI } from "../ui/protocol";
           grid-column: auto;
           min-height: 31px;
         }
+        .message-actions { display: grid; gap: 7px; margin-top: 8px; }
+        .message-actions a {
+          min-height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 9px 12px;
+          border: 1px solid var(--pt-accent);
+          background: var(--pt-accent);
+          color: #fff;
+          font: 600 10px/1.3 inherit;
+          letter-spacing: .05em;
+          text-decoration: none;
+          text-transform: uppercase;
+        }
+        .message-actions a:hover { filter: brightness(1.08); }
+        .message-actions a:focus-visible { outline: 2px solid var(--pt-accent); outline-offset: 2px; }
         .variants { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
         .variants label { display: grid; gap: 3px; color: #77736c; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
         .variants select { min-width: 0; height: 31px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); color: var(--pt-chat-text, #171715); padding: 0 6px; font: 10px inherit; }

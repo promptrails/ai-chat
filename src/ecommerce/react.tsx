@@ -22,6 +22,7 @@ export interface ShopAssistantProps {
   sessionMaxAge?: number;
   showToolActivity?: boolean;
   toolLabels?: ToolActivityLabels;
+  allowedActionOrigins?: string[];
   closeOnProductView?: boolean;
   quickPrompts?: string[];
   translations?: Record<string, string>;
@@ -45,6 +46,7 @@ const attributes = [
   ["sessionMaxAge", "session-max-age"],
   ["showToolActivity", "show-tool-activity"],
   ["toolLabels", "tool-labels"],
+  ["allowedActionOrigins", "allowed-action-origins"],
   ["closeOnProductView", "close-on-product-view"],
   ["quickPrompts", "quick-prompts"],
   ["translations", "translations"],

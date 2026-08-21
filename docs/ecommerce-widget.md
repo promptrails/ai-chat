@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.2/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.3/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -35,6 +35,7 @@ Pin a release in production:
   persist-session="true"
   session-max-age="86400"
   show-tool-activity="true"
+  allowed-action-origins='["https://api.whatsapp.com"]'
   close-on-product-view="true"
   tool-labels='{"catalog_search":"Searching the collection…","knowledge_search":"Checking the store guide…"}'
 ></promptrails-shop-assistant>
@@ -127,6 +128,26 @@ hallucinated selections are ignored. Camel-case `selectedSize` and
 
 It also renders declarative `order`, `order_tracking`, and `status` resources as inert status cards. No model-provided script or navigation URL is executed.
 
+## Safe standalone actions
+
+Set `allowed-action-origins` to the smallest exact origin allowlist needed by
+the storefront. The widget converts a declarative, resource-less
+`resource.open` action or a matching HTTPS URL in assistant text into a CTA
+(localhost HTTP remains available for development):
+
+```html
+<promptrails-shop-assistant
+  allowed-action-origins='["https://api.whatsapp.com"]'
+></promptrails-shop-assistant>
+```
+
+WhatsApp links receive the localized `WhatsApp'tan yaz` label automatically.
+Allowed links open in a new tab with `noopener noreferrer`. URLs from any other
+external origin, non-HTTP(S) schemes, scripts, and arbitrary model payloads are
+never turned into navigation. Same-origin links are allowed automatically.
+The React adapter exposes the same option as `allowedActionOrigins` and emits
+`promptrails:action-open` for analytics immediately before native navigation.
+
 ## CSS customization
 
 CSS custom properties cross the Shadow DOM host boundary:
@@ -151,7 +172,7 @@ promptrails-shop-assistant {
 }
 ```
 
-Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, `status-card`, and `activity`. Use `style-nonce` under a nonce-based CSP.
+Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, `status-card`, `action`, and `activity`. Use `style-nonce` under a nonce-based CSP.
 
 For a fully custom theme, set `stylesheet-url` to an HTTPS or same-site CSS
 file. It is loaded inside the Shadow DOM after the built-in styles, so scoped
@@ -222,7 +243,8 @@ Set `show-tool-activity="false"` to retain the generic typing indicator without 
 
 On mobile Safari the widget keeps composer and variant controls at a minimum 16px font size, preventing iOS from leaving the page auto-zoomed after focus. The fixed panel uses safe-area insets and does not rely on a competing viewport width declaration.
 
-Event payloads never execute model-provided JavaScript or URLs. In the default
+Event payloads never execute model-provided JavaScript. Standalone links require
+an explicit exact-origin allowlist and remain native, isolated anchors. In the default
 catalog mode, product names, prices, images, and slugs are resolved from the
 host catalog by ID. In response mode, HTTP(S) fields are sanitized and emitted
 as inert data for the host to validate and handle.
