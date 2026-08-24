@@ -174,7 +174,7 @@ import { normalizeChatUI } from "../ui/protocol";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "tool-labels", "allowed-action-origins", "close-on-product-view", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "tool-labels", "allowed-action-origins", "close-on-product-view", "translations"];
     }
 
     constructor() {
@@ -267,6 +267,7 @@ import { normalizeChatUI } from "../ui/protocol";
         persistSession: this.getAttribute("persist-session") !== "false",
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
         showToolActivity: this.getAttribute("show-tool-activity") !== "false",
+        showActivityDuration: this.getAttribute("show-activity-duration") === "true",
         toolLabels: stringMap(this.getAttribute("tool-labels")),
         allowedActionOrigins: actionOrigins(this.getAttribute("allowed-action-origins")),
         closeOnProductView: this.getAttribute("close-on-product-view") !== "false",
@@ -342,7 +343,7 @@ import { normalizeChatUI } from "../ui/protocol";
             <div class="quick initial">${quickPrompts.map((prompt) => `<button type="button">${safe(prompt)}</button>`).join("")}</div>
             <div class="messages"></div>
             <div class="offline" ${navigator.onLine ? "hidden" : ""}>${safe(labels.offline)}</div>
-            <div class="typing" part="activity" role="status" aria-live="polite" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em><time>0 sn</time></div>
+            <div class="typing" part="activity" role="status" aria-live="polite" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em>${this.config.showActivityDuration ? "<time>0 sn</time>" : ""}</div>
           </div>
           <form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
@@ -713,8 +714,10 @@ import { normalizeChatUI } from "../ui/protocol";
       if (element) {
         if (visible && !this.activityStartedAt) {
           this.activityStartedAt = Date.now();
-          window.clearInterval(this.activityTimer);
-          this.activityTimer = window.setInterval(() => this.updateActivityElapsed(), 1_000);
+          if (this.config.showActivityDuration) {
+            window.clearInterval(this.activityTimer);
+            this.activityTimer = window.setInterval(() => this.updateActivityElapsed(), 1_000);
+          }
         }
         if (!visible) {
           window.clearInterval(this.activityTimer);
@@ -924,7 +927,9 @@ import { normalizeChatUI } from "../ui/protocol";
         .typing time { flex: 0 0 auto; margin-left: 7px; color: var(--pt-chat-muted, #68655f); font: 600 8px/1 inherit; letter-spacing: .04em; }
         .typing.is-finalizing span { background: #54825a; }
         @keyframes activity-progress { to { background-position: -200% 0; } }
-        button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid color-mix(in srgb, var(--pt-accent) 70%, white); outline-offset: 2px; }
+        button:focus-visible, select:focus-visible { outline: 2px solid color-mix(in srgb, var(--pt-accent) 70%, white); outline-offset: 2px; }
+        .composer:focus-within { border-color: var(--pt-accent); }
+        .composer textarea:focus-visible { outline: none; }
         .composer textarea { min-height: 47px; padding-block: 14px; }
         .feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 7px; color: #77736c; font-size: 9px; }
         .feedback button { width: 27px; height: 27px; padding: 0; border: 1px solid #d7d2c9; border-radius: 50%; background: #fff; cursor: pointer; font-size: 12px; filter: grayscale(1); }

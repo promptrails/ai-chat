@@ -21,6 +21,7 @@ export interface ShopAssistantProps {
   persistSession?: boolean;
   sessionMaxAge?: number;
   showToolActivity?: boolean;
+  showActivityDuration?: boolean;
   toolLabels?: ToolActivityLabels;
   allowedActionOrigins?: string[];
   closeOnProductView?: boolean;
@@ -45,6 +46,7 @@ const attributes = [
   ["persistSession", "persist-session"],
   ["sessionMaxAge", "session-max-age"],
   ["showToolActivity", "show-tool-activity"],
+  ["showActivityDuration", "show-activity-duration"],
   ["toolLabels", "tool-labels"],
   ["allowedActionOrigins", "allowed-action-origins"],
   ["closeOnProductView", "close-on-product-view"],

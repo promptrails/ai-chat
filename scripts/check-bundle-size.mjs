@@ -2,8 +2,8 @@ import { stat } from "node:fs/promises";
 
 const limits = {
   "dist/widget.global.js": 190 * 1024,
-  // Safe standalone CTA parsing and rendering is part of the ecommerce bundle.
-  "dist/ecommerce.global.js": 52 * 1024,
+  // Safe standalone CTA rendering and configurable activity UX are part of the ecommerce bundle.
+  "dist/ecommerce.global.js": 53 * 1024,
   "dist/styles.css": 40 * 1024,
 };
 

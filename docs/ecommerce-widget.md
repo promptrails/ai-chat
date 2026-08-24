@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.4/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.5/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -35,6 +35,7 @@ Pin a release in production:
   persist-session="true"
   session-max-age="86400"
   show-tool-activity="true"
+  show-activity-duration="false"
   allowed-action-origins='["https://api.whatsapp.com"]'
   close-on-product-view="true"
   tool-labels='{"catalog_search":"Searching the collection…","knowledge_search":"Checking the store guide…"}'
@@ -245,7 +246,7 @@ Use `tool-labels` to provide brand-specific copy keyed by tool name:
 ></promptrails-shop-assistant>
 ```
 
-Set `show-tool-activity="false"` to retain the generic typing indicator without tool-specific updates. The React adapter exposes the same options as `showToolActivity` and `toolLabels`.
+Set `show-tool-activity="false"` to retain the generic typing indicator without tool-specific updates. Elapsed seconds are hidden by default; set `show-activity-duration="true"` only when the storefront explicitly wants a timer. The React adapter exposes the same options as `showToolActivity`, `showActivityDuration`, and `toolLabels`.
 
 On mobile Safari the widget keeps composer and variant controls at a minimum 16px font size, preventing iOS from leaving the page auto-zoomed after focus. The fixed panel uses safe-area insets and does not rely on a competing viewport width declaration.
 

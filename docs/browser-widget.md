@@ -10,7 +10,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.4/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.5/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"

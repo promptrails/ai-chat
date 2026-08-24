@@ -407,8 +407,20 @@ describe("PromptRails ecommerce widget", () => {
     expect(activity?.textContent).not.toContain("private_internal_tool");
   });
 
-  it("shows an elapsed wait timer while the agent is working", () => {
+  it("hides elapsed wait time by default", () => {
     const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    widget.setTyping(true, "Canlı koleksiyonda arıyorum…");
+
+    expect(widget.shadowRoot.querySelector(".typing")?.hidden).toBe(false);
+    expect(widget.shadowRoot.querySelector(".typing time")).toBeNull();
+    widget.setTyping(false);
+  });
+
+  it("shows an elapsed wait timer only when explicitly enabled", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("show-activity-duration", "true");
     document.body.appendChild(widget);
 
     widget.setTyping(true, "Canlı koleksiyonda arıyorum…");
@@ -418,6 +430,16 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot.querySelector(".typing")?.hidden).toBe(false);
     expect(widget.shadowRoot.querySelector(".typing time")?.textContent).toBe("5 sn");
     widget.setTyping(false);
+  });
+
+  it("uses the composer border as the textarea focus indicator", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    const styles = widget.shadowRoot.querySelector("style")?.textContent || "";
+    expect(styles).toContain(".composer:focus-within");
+    expect(styles).toContain(".composer textarea:focus-visible { outline: none; }");
+    expect(styles).not.toContain("button:focus-visible, textarea:focus-visible");
   });
 
   it("closes before product navigation and keeps action labels concise", () => {
