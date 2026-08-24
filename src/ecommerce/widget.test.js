@@ -226,6 +226,7 @@ describe("PromptRails ecommerce widget", () => {
           ],
           selected_size: "M",
           selected_color: "Siyah",
+          selected_variant_id: "variant-m-black",
           reason: "Davet stilinize uygun.",
         }],
       },
@@ -243,6 +244,7 @@ describe("PromptRails ecommerce widget", () => {
       colors: ["Siyah"],
       selectedSize: "M",
       selectedColor: "Siyah",
+      variantId: "variant-m-black",
     })]);
   });
 
@@ -263,6 +265,7 @@ describe("PromptRails ecommerce widget", () => {
         colors: ["Black", "Red"],
         selectedSize: "38",
         selectedColor: "Red",
+        variantId: "variant-38-red",
         canAdd: true,
       }],
     }];
@@ -277,6 +280,7 @@ describe("PromptRails ecommerce widget", () => {
     widget.shadowRoot.querySelector("[data-add]").click();
     expect(listener.mock.calls[0][0].detail).toMatchObject({
       productId: "product-38",
+      variantId: "variant-38-red",
       size: "38",
       color: "Red",
       quantity: 1,
@@ -401,6 +405,19 @@ describe("PromptRails ecommerce widget", () => {
     const activity = widget.shadowRoot.querySelector(".typing");
     expect(activity?.textContent).toContain("İlgili bilgileri kontrol ediyorum…");
     expect(activity?.textContent).not.toContain("private_internal_tool");
+  });
+
+  it("shows an elapsed wait timer while the agent is working", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    widget.setTyping(true, "Canlı koleksiyonda arıyorum…");
+    widget.activityStartedAt = Date.now() - 5_000;
+    widget.updateActivityElapsed();
+
+    expect(widget.shadowRoot.querySelector(".typing")?.hidden).toBe(false);
+    expect(widget.shadowRoot.querySelector(".typing time")?.textContent).toBe("5 sn");
+    widget.setTyping(false);
   });
 
   it("closes before product navigation and keeps action labels concise", () => {

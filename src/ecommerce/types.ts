@@ -14,6 +14,7 @@ export interface ProductViewDetail {
 }
 
 export interface CartAddDetail extends ProductViewDetail {
+  variantId?: string;
   size?: string;
   color?: string;
   quantity: number;

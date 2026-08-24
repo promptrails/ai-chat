@@ -149,6 +149,10 @@ import { normalizeChatUI } from "../ui/protocol";
     ]);
     const requestedSize = boundedText(attributes.selected_size ?? attributes.selectedSize, 120);
     const requestedColor = boundedText(attributes.selected_color ?? attributes.selectedColor, 120);
+    const variantId = boundedText(
+      attributes.selected_variant_id ?? attributes.selectedVariantId ?? attributes.variant_id ?? attributes.variantId,
+      160,
+    );
     const selectedSize = sizes.includes(requestedSize) ? requestedSize : "";
     const selectedColor = colors.includes(requestedColor) ? requestedColor : "";
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
@@ -165,6 +169,7 @@ import { normalizeChatUI } from "../ui/protocol";
       colors,
       selectedSize,
       selectedColor,
+      variantId,
     };
   };
 
@@ -185,6 +190,8 @@ import { normalizeChatUI } from "../ui/protocol";
       this.ready = false;
       this.activeTools = new Map();
       this.cartTimers = new Map();
+      this.activityStartedAt = 0;
+      this.activityTimer = 0;
       this.onWindowKey = (event) => this.handleWindowKey(event);
       this.onCartConfirmed = (event) => this.cartConfirmed(event);
       this.onCartFailed = (event) => this.cartFailed(event);
@@ -217,6 +224,7 @@ import { normalizeChatUI } from "../ui/protocol";
       window.removeEventListener("offline", this.onConnectivity);
       this.cartTimers.forEach((timer) => window.clearTimeout(timer));
       this.cartTimers.clear();
+      window.clearInterval(this.activityTimer);
       if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
     }
 
@@ -334,7 +342,7 @@ import { normalizeChatUI } from "../ui/protocol";
             <div class="quick initial">${quickPrompts.map((prompt) => `<button type="button">${safe(prompt)}</button>`).join("")}</div>
             <div class="messages"></div>
             <div class="offline" ${navigator.onLine ? "hidden" : ""}>${safe(labels.offline)}</div>
-            <div class="typing" part="activity" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em></div>
+            <div class="typing" part="activity" role="status" aria-live="polite" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em><time>0 sn</time></div>
           </div>
           <form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
@@ -381,7 +389,7 @@ import { normalizeChatUI } from "../ui/protocol";
         button.dataset.idleLabel = button.textContent || this.labels.add;
         button.textContent = this.labels.adding;
         const selected = this.selectedVariants?.[product.id] || {};
-        this.emit("promptrails:cart-add", { productId: product.id, slug: product.slug, size: selected.size || product.selectedSize || product.sizes?.[0], color: selected.color || product.selectedColor || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
+        this.emit("promptrails:cart-add", { productId: product.id, variantId: product.variantId || undefined, slug: product.slug, size: selected.size || product.selectedSize || product.sizes?.[0], color: selected.color || product.selectedColor || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
         window.clearTimeout(this.cartTimers.get(product.id));
         this.cartTimers.set(product.id, window.setTimeout(() => {
           this.cartFailed({ detail: { productId: product.id } });
@@ -703,12 +711,29 @@ import { normalizeChatUI } from "../ui/protocol";
     setTyping(visible, text = "", state = "thinking") {
       const element = this.root.querySelector(".typing");
       if (element) {
+        if (visible && !this.activityStartedAt) {
+          this.activityStartedAt = Date.now();
+          window.clearInterval(this.activityTimer);
+          this.activityTimer = window.setInterval(() => this.updateActivityElapsed(), 1_000);
+        }
+        if (!visible) {
+          window.clearInterval(this.activityTimer);
+          this.activityTimer = 0;
+          this.activityStartedAt = 0;
+        }
         element.hidden = !visible;
-        element.classList.toggle("is-complete", visible && state === "complete");
+        element.classList.toggle("is-finalizing", visible && state === "complete");
         const label = element.querySelector("em");
         if (label) label.textContent = text || `${this.config.assistantName} ${this.labels.thinking}`;
+        this.updateActivityElapsed();
       }
       this.scroll();
+    }
+
+    updateActivityElapsed() {
+      const elapsed = this.root.querySelector(".typing time");
+      if (!elapsed || !this.activityStartedAt) return;
+      elapsed.textContent = `${Math.max(0, Math.floor((Date.now() - this.activityStartedAt) / 1_000))} sn`;
     }
 
     cartConfirmed(event) {
@@ -893,8 +918,12 @@ import { normalizeChatUI } from "../ui/protocol";
         .status-card h3 { font: 400 16px/1.2 Georgia, serif; }
         .status-card p, .status-card time { color: var(--pt-chat-muted, #68655f); font-size: 10px; }
         .offline { margin: 8px 0; border: 1px solid #d8a52f; background: #fff8df; padding: 9px; color: #59420c; font-size: 10px; }
-        .typing.is-complete span { display: none; }
-        .typing.is-complete::before { content: "✓"; display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid currentColor; border-radius: 50%; color: #54825a; font-size: 10px; }
+        .typing { position: relative; width: fit-content; max-width: calc(100% - 40px); min-height: 34px; padding: 9px 11px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); }
+        .typing::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; content: ""; background: linear-gradient(90deg, transparent, var(--pt-accent), transparent); background-size: 200% 100%; animation: activity-progress 1.4s linear infinite; }
+        .typing em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .typing time { flex: 0 0 auto; margin-left: 7px; color: var(--pt-chat-muted, #68655f); font: 600 8px/1 inherit; letter-spacing: .04em; }
+        .typing.is-finalizing span { background: #54825a; }
+        @keyframes activity-progress { to { background-position: -200% 0; } }
         button:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid color-mix(in srgb, var(--pt-accent) 70%, white); outline-offset: 2px; }
         .composer textarea { min-height: 47px; padding-block: 14px; }
         .feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 7px; color: #77736c; font-size: 9px; }

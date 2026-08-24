@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.3/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.4/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -125,6 +125,12 @@ already requested a specific variant. The widget preselects a value only when
 it is present in that product's sanitized `sizes` or `colors` list; invalid or
 hallucinated selections are ignored. Camel-case `selectedSize` and
 `selectedColor` aliases are also accepted.
+
+For direct storefront cart integrations, include the verified tool-provided
+`selected_variant_id`. The sanitized value is emitted as `variantId` on
+`promptrails:cart-add`, allowing the host page to call its native cart API from
+any page without navigating to the product detail. Never derive this identifier
+from model text; it must come from the selected in-stock catalog variant.
 
 It also renders declarative `order`, `order_tracking`, and `status` resources as inert status cards. No model-provided script or navigation URL is executed.
 
