@@ -398,6 +398,40 @@ describe("PromptRails ecommerce widget", () => {
     }));
   });
 
+  it("opens the same trusted product from its photo and title", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Pick",
+      products: [{
+        id: "product-1",
+        slug: "dress",
+        url: "https://www.example.com/dress",
+        imageUrl: "https://www.example.com/dress.jpg",
+        name: "Dress",
+        category: "Dresses",
+        price: 100,
+      }],
+    }];
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:product-view", listener);
+    widget.paintMessages();
+
+    widget.shadowRoot.querySelector(".product-image-link").click();
+    widget.shadowRoot.querySelector(".product-title").click();
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      detail: {
+        productId: "product-1",
+        slug: "dress",
+        url: "https://www.example.com/dress",
+      },
+    }));
+  });
+
   it("keeps structured page context out of the visible user message", async () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);
