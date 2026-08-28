@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.5/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.0/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -36,11 +36,29 @@ Pin a release in production:
   session-max-age="86400"
   show-tool-activity="true"
   show-activity-duration="false"
+  legal-notice="Devam ederek kişisel veri politikasını kabul edersiniz."
+  legal-url="https://shop.example.com/privacy"
+  legal-link-label="Gizlilik politikası"
+  legal-accept-label="Kabul et"
+  legal-consent-version="2026-08"
+  legal-consent-max-age="180"
+  ai-disclaimer="Yanıtlar yapay zekâ tarafından oluşturulur ve hata içerebilir."
   allowed-action-origins='["https://api.whatsapp.com"]'
   close-on-product-view="true"
   tool-labels='{"catalog_search":"Searching the collection…","knowledge_search":"Checking the store guide…"}'
 ></promptrails-shop-assistant>
 ```
+
+## Explicit legal consent
+
+Set both `legal-notice` and `legal-url` to lock the composer behind an explicit
+accept action. The widget persists the accepted `legal-consent-version` in
+localStorage and uses a SameSite cookie as a fallback. The record is scoped to
+the current workspace and agent; changing the version asks the visitor again.
+`legal-consent-max-age` is expressed in days, defaults to 180, and is capped at
+365. Acceptance emits a composed `promptrails:legal-consent` event containing
+the accepted version and timestamp. `ai-disclaimer` adds a permanent compact
+notice below the composer.
 
 ## Browser security boundary
 
@@ -80,6 +98,7 @@ days. Use `persist-session="false"` on kiosks or shared devices.
   "name": "Ece Asimetrik Midi Elbise",
   "category": "Elbiseler",
   "price": 5990,
+  "compare_at_price": 6490,
   "description": "Zamansız midi elbise",
   "material": "Viskon karışımı",
   "colors": ["Siyah"],
@@ -126,6 +145,11 @@ already requested a specific variant. The widget preselects a value only when
 it is present in that product's sanitized `sizes` or `colors` list; invalid or
 hallucinated selections are ignored. Camel-case `selectedSize` and
 `selectedColor` aliases are also accepted.
+
+Verified `compare_at_price` / `compareAtPrice` values render as a struck-through
+reference price only when they are greater than the current price. Product
+titles link to the same sanitized product URL as the inspect action. A single
+size or color is rendered as a locked value instead of a misleading selector.
 
 For direct storefront cart integrations, include the verified tool-provided
 `selected_variant_id`. The sanitized value is emitted as `variantId` on
@@ -179,7 +203,7 @@ promptrails-shop-assistant {
 }
 ```
 
-Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, `status-card`, `action`, and `activity`. Use `style-nonce` under a nonce-based CSP.
+Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, `status-card`, `action`, `activity`, `legal-consent`, and `ai-disclaimer`. Use `style-nonce` under a nonce-based CSP.
 
 For a fully custom theme, set `stylesheet-url` to an HTTPS or same-site CSS
 file. It is loaded inside the Shadow DOM after the built-in styles, so scoped

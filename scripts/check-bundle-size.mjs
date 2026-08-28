@@ -2,8 +2,8 @@ import { stat } from "node:fs/promises";
 
 const limits = {
   "dist/widget.global.js": 190 * 1024,
-  // Safe standalone CTA rendering and configurable activity UX are part of the ecommerce bundle.
-  "dist/ecommerce.global.js": 53 * 1024,
+  // Consent persistence, safe standalone CTAs, and commerce card UX live in this dependency-free bundle.
+  "dist/ecommerce.global.js": 58 * 1024,
   "dist/styles.css": 40 * 1024,
 };
 

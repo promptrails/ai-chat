@@ -25,6 +25,13 @@ export interface ShopAssistantProps {
   toolLabels?: ToolActivityLabels;
   allowedActionOrigins?: string[];
   closeOnProductView?: boolean;
+  legalNotice?: string;
+  legalUrl?: string;
+  legalLinkLabel?: string;
+  legalAcceptLabel?: string;
+  legalConsentVersion?: string;
+  legalConsentMaxAge?: number;
+  aiDisclaimer?: string;
   quickPrompts?: string[];
   translations?: Record<string, string>;
   context?: ShopAssistantContext;
@@ -50,6 +57,13 @@ const attributes = [
   ["toolLabels", "tool-labels"],
   ["allowedActionOrigins", "allowed-action-origins"],
   ["closeOnProductView", "close-on-product-view"],
+  ["legalNotice", "legal-notice"],
+  ["legalUrl", "legal-url"],
+  ["legalLinkLabel", "legal-link-label"],
+  ["legalAcceptLabel", "legal-accept-label"],
+  ["legalConsentVersion", "legal-consent-version"],
+  ["legalConsentMaxAge", "legal-consent-max-age"],
+  ["aiDisclaimer", "ai-disclaimer"],
   ["quickPrompts", "quick-prompts"],
   ["translations", "translations"],
 ] as const;

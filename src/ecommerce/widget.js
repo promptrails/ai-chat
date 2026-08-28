@@ -12,6 +12,8 @@ import { normalizeChatUI } from "../ui/protocol";
 
   const DEFAULT_SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
   const MAX_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+  const DEFAULT_CONSENT_MAX_AGE_DAYS = 180;
+  const MAX_CONSENT_MAX_AGE_DAYS = 365;
   const slotPosition = ["0 0", "33.333% 0", "66.666% 0", "100% 0", "0 100%", "33.333% 100%", "66.666% 100%", "100% 100%"];
   const safe = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
   const cleanBase = (value) => String(value ?? "").trim().replace(/\/+$/, "");
@@ -149,12 +151,30 @@ import { normalizeChatUI } from "../ui/protocol";
     ]);
     const requestedSize = boundedText(attributes.selected_size ?? attributes.selectedSize, 120);
     const requestedColor = boundedText(attributes.selected_color ?? attributes.selectedColor, 120);
+    const selectedSize = sizes.includes(requestedSize) ? requestedSize : "";
+    const selectedColor = colors.includes(requestedColor) ? requestedColor : "";
     const variantId = boundedText(
       attributes.selected_variant_id ?? attributes.selectedVariantId ?? attributes.variant_id ?? attributes.variantId,
       160,
     );
-    const selectedSize = sizes.includes(requestedSize) ? requestedSize : "";
-    const selectedColor = colors.includes(requestedColor) ? requestedColor : "";
+    const selectedVariant = variants.find((variant) => {
+      const candidateID = boundedText(variant?.id ?? variant?.variant_id, 160);
+      if (variantId && candidateID === variantId) return true;
+      const sizeMatches = !selectedSize || boundedText(variant?.size, 120) === selectedSize;
+      const colorMatches = !selectedColor || boundedText(variant?.color, 120) === selectedColor;
+      return sizeMatches && colorMatches;
+    });
+    const compareAtValue = attributes.compare_at_price ?? attributes.compareAtPrice
+      ?? attributes.compare_at ?? attributes.compareAt ?? attributes.original_price
+      ?? attributes.originalPrice ?? attributes.list_price ?? attributes.listPrice;
+    const variantCompareAt = selectedVariant?.price?.compare_at ?? selectedVariant?.price?.compareAt
+      ?? selectedVariant?.compare_at ?? selectedVariant?.compareAt;
+    const compareAt = finiteNumber(
+      typeof compareAtValue === "object" ? compareAtValue?.min : compareAtValue,
+      compareAtValue?.amount,
+      compareAtValue?.value,
+      variantCompareAt,
+    );
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
     return {
       id,
@@ -164,6 +184,7 @@ import { normalizeChatUI } from "../ui/protocol";
       category,
       description: boundedText(attributes.description ?? attributes.aciklama, 800),
       price,
+      compareAt: compareAt > price ? compareAt : 0,
       imageUrl: firstImageUrl(attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images),
       sizes,
       colors,
@@ -174,7 +195,7 @@ import { normalizeChatUI } from "../ui/protocol";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "tool-labels", "allowed-action-origins", "close-on-product-view", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
     }
 
     constructor() {
@@ -243,6 +264,10 @@ import { normalizeChatUI } from "../ui/protocol";
       const sessionMaxAgeSeconds = Number.isFinite(requestedSessionMaxAge) && requestedSessionMaxAge > 0
         ? Math.min(Math.floor(requestedSessionMaxAge), MAX_SESSION_MAX_AGE_SECONDS)
         : DEFAULT_SESSION_MAX_AGE_SECONDS;
+      const requestedConsentMaxAge = Number(this.getAttribute("legal-consent-max-age"));
+      const consentMaxAgeDays = Number.isFinite(requestedConsentMaxAge) && requestedConsentMaxAge > 0
+        ? Math.min(Math.floor(requestedConsentMaxAge), MAX_CONSENT_MAX_AGE_DAYS)
+        : DEFAULT_CONSENT_MAX_AGE_DAYS;
       const brand = this.getAttribute("brand")?.trim() || "Mağaza";
       return {
         apiUrl: cleanBase(this.getAttribute("api-url")),
@@ -271,6 +296,13 @@ import { normalizeChatUI } from "../ui/protocol";
         toolLabels: stringMap(this.getAttribute("tool-labels")),
         allowedActionOrigins: actionOrigins(this.getAttribute("allowed-action-origins")),
         closeOnProductView: this.getAttribute("close-on-product-view") !== "false",
+        legalNotice: boundedText(this.getAttribute("legal-notice"), 500),
+        legalUrl: mediaUrl(this.getAttribute("legal-url")),
+        legalLinkLabel: boundedText(this.getAttribute("legal-link-label"), 120),
+        legalAcceptLabel: boundedText(this.getAttribute("legal-accept-label"), 80),
+        legalConsentVersion: boundedText(this.getAttribute("legal-consent-version"), 80) || "1",
+        legalConsentMaxAgeSeconds: consentMaxAgeDays * 24 * 60 * 60,
+        aiDisclaimer: boundedText(this.getAttribute("ai-disclaimer"), 300),
       };
     }
 
@@ -284,7 +316,7 @@ import { normalizeChatUI } from "../ui/protocol";
         feedback: "Was this helpful?", helpful: "Helpful", notHelpful: "Not helpful",
         offline: "You are offline. Check your connection.", retry: "Try again",
         toolWorking: "Checking the relevant information…", toolComplete: "Information found. Preparing your answer…",
-        openLink: "Open link", whatsapp: "Message on WhatsApp",
+        openLink: "Open link", whatsapp: "Message on WhatsApp", accept: "Accept", privacyPolicy: "Privacy policy",
       };
       const turkish = {
         open: "Sohbeti aç", close: "Sohbeti küçült", newChat: "Yeni sohbet başlat", online: "Çevrimiçi",
@@ -295,7 +327,7 @@ import { normalizeChatUI } from "../ui/protocol";
         feedback: "Bu öneri yardımcı oldu mu?", helpful: "Yardımcı oldu", notHelpful: "Yardımcı olmadı",
         offline: "Çevrimdışısınız. Bağlantınızı kontrol edin.", retry: "Tekrar deneyelim",
         toolWorking: "İlgili bilgileri kontrol ediyorum…", toolComplete: "Bilgileri buldum, yanıtınızı hazırlıyorum…",
-        openLink: "Bağlantıyı aç", whatsapp: "WhatsApp'tan yaz",
+        openLink: "Bağlantıyı aç", whatsapp: "WhatsApp'tan yaz", accept: "Kabul et", privacyPolicy: "Gizlilik politikası",
       };
       let custom = {};
       try { custom = JSON.parse(this.getAttribute("translations") || "{}"); } catch { /* invalid overrides are ignored */ }
@@ -329,9 +361,51 @@ import { normalizeChatUI } from "../ui/protocol";
       return `promptrails-shop-widget:${workspaceId || "demo"}:${agentId || "local"}`;
     }
 
+    get consentStorageKey() {
+      return `${this.storageKey}:legal-consent:${this.config.legalConsentVersion}`;
+    }
+
+    get consentCookieName() {
+      return `${this.storageKey}:legal-consent`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+    }
+
+    get consentRequired() {
+      return Boolean(this.config.legalNotice && this.config.legalUrl);
+    }
+
+    hasLegalConsent() {
+      if (!this.consentRequired) return true;
+      try {
+        const saved = JSON.parse(localStorage.getItem(this.consentStorageKey) || "null");
+        if (saved?.version === this.config.legalConsentVersion && Number(saved?.acceptedAt) > 0) return true;
+      } catch { /* local storage is optional */ }
+      try {
+        const expected = encodeURIComponent(this.config.legalConsentVersion);
+        return document.cookie.split(";").some((entry) => entry.trim() === `${this.consentCookieName}=${expected}`);
+      } catch { return false; }
+    }
+
+    acceptLegalConsent() {
+      const acceptedAt = Date.now();
+      try {
+        localStorage.setItem(this.consentStorageKey, JSON.stringify({
+          acceptedAt,
+          version: this.config.legalConsentVersion,
+        }));
+      } catch { /* cookie remains available as a fallback */ }
+      try {
+        const secure = location.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `${this.consentCookieName}=${encodeURIComponent(this.config.legalConsentVersion)}; Path=/; Max-Age=${this.config.legalConsentMaxAgeSeconds}; SameSite=Lax${secure}`;
+      } catch { /* local storage remains available as a fallback */ }
+      this.renderShell();
+      requestAnimationFrame(() => this.root.querySelector("textarea")?.focus());
+      this.emit("promptrails:legal-consent", { acceptedAt, version: this.config.legalConsentVersion });
+    }
+
     renderShell() {
-      const { assistantName, assistantMark, launcherTitle, launcherSubtitle, greeting, placeholder, quickPrompts, accent, stylesheetUrl: customStylesheet, styleNonce } = this.config;
+      const { assistantName, assistantMark, launcherTitle, launcherSubtitle, greeting, placeholder, quickPrompts, accent, stylesheetUrl: customStylesheet, styleNonce, legalNotice, legalUrl, legalLinkLabel, legalAcceptLabel, aiDisclaimer } = this.config;
       const labels = this.labels;
+      const consented = this.hasLegalConsent();
       this.root.innerHTML = `<style${styleNonce ? ` nonce="${safe(styleNonce)}"` : ""}>${this.styles(accent)}${this.compactStyles()}</style>${customStylesheet ? `<link rel="stylesheet" href="${safe(customStylesheet)}">` : ""}
         <button class="launcher" part="launcher" type="button" aria-label="${safe(labels.open)}" aria-expanded="${this.opened}" aria-controls="pt-shop-panel" ${this.opened ? "hidden" : ""}>
           <span class="launcher-mark">${safe(assistantMark)}</span><span><strong>${safe(launcherTitle)}</strong><small>${safe(launcherSubtitle)}</small></span><i aria-hidden="true">↗</i>
@@ -345,7 +419,8 @@ import { normalizeChatUI } from "../ui/protocol";
             <div class="offline" ${navigator.onLine ? "hidden" : ""}>${safe(labels.offline)}</div>
             <div class="typing" part="activity" role="status" aria-live="polite" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em>${this.config.showActivityDuration ? "<time>0 sn</time>" : ""}</div>
           </div>
-          <form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>
+          ${consented ? `<form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>` : `<aside class="legal-consent" part="legal-consent" role="note"><p>${safe(legalNotice)} <a href="${safe(legalUrl)}" target="_blank" rel="noopener noreferrer">${safe(legalLinkLabel || labels.privacyPolicy)}</a></p><button class="accept-legal" type="button">${safe(legalAcceptLabel || labels.accept)}</button></aside>`}
+          ${aiDisclaimer ? `<p class="ai-disclaimer" part="ai-disclaimer">${safe(aiDisclaimer)}</p>` : ""}
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
         </section>`;
       this.paintMessages();
@@ -357,9 +432,11 @@ import { normalizeChatUI } from "../ui/protocol";
       const close = this.root.querySelector(".close");
       const newChat = this.root.querySelector(".new-chat");
       const form = this.root.querySelector(".composer");
+      const acceptLegal = this.root.querySelector(".accept-legal");
       if (launcher) launcher.onclick = () => this.toggle(!this.opened);
       if (close) close.onclick = () => this.toggle(false);
       if (newChat) newChat.onclick = () => this.startNewSession();
+      if (acceptLegal) acceptLegal.onclick = () => this.acceptLegalConsent();
       if (form) form.onsubmit = (event) => {
         event.preventDefault();
         const input = this.root.querySelector("textarea");
@@ -434,7 +511,7 @@ import { normalizeChatUI } from "../ui/protocol";
       const launcher = this.root.querySelector(".launcher");
       launcher?.setAttribute("aria-expanded", String(next));
       if (launcher) launcher.hidden = next;
-      if (next) requestAnimationFrame(() => this.root.querySelector("textarea")?.focus());
+      if (next) requestAnimationFrame(() => (this.root.querySelector("textarea") || this.root.querySelector(".accept-legal"))?.focus());
       this.emit(next ? "promptrails:open" : "promptrails:close", {});
     }
 
@@ -790,10 +867,10 @@ import { normalizeChatUI } from "../ui/protocol";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
       return `<div class="recommendations-list">${products.map((product) => `<article class="recommendation" part="card product-card">
         <div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>
-        <div><small>${safe(product.category)}</small><h3>${safe(product.name)}</h3><strong>${money.format(Number(product.price) || 0)}</strong><p>${safe(product.reason)}</p></div>
+        <div><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3><div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
         ${(product.sizes?.length || product.colors?.length) ? `<div class="variants">
-          ${product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option value="${safe(size)}"${size === product.selectedSize ? " selected" : ""}>${safe(size)}</option>`).join("")}</select></label>` : ""}
-          ${product.colors?.length ? `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option value="${safe(color)}"${color === product.selectedColor ? " selected" : ""}>${safe(color)}</option>`).join("")}</select></label>` : ""}
+          ${product.sizes?.length === 1 ? `<label><span>${safe(this.labels.size)}</span><output class="variant-locked">${safe(product.sizes[0])}</output></label>` : product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option value="${safe(size)}"${size === product.selectedSize ? " selected" : ""}>${safe(size)}</option>`).join("")}</select></label>` : ""}
+          ${product.colors?.length === 1 ? `<label><span>${safe(this.labels.color)}</span><output class="variant-locked">${safe(product.colors[0])}</output></label>` : product.colors?.length ? `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option value="${safe(color)}"${color === product.selectedColor ? " selected" : ""}>${safe(color)}</option>`).join("")}</select></label>` : ""}
           <label><span>${safe(this.labels.quantity)}</span><select data-variant="quantity" data-product-id="${safe(product.id)}"><option>1</option><option>2</option><option>3</option></select></label>
         </div>` : ""}
         <div class="recommendation-actions">
@@ -846,6 +923,7 @@ import { normalizeChatUI } from "../ui/protocol";
         .panel {
           width: min(396px, calc(100vw - 32px));
           height: min(640px, calc(100dvh - 48px));
+          grid-template-rows: auto minmax(0, 1fr) repeat(3, auto);
         }
         .panel header { min-height: 64px; padding-block: 11px; }
         .panel-actions { gap: 3px !important; }
@@ -875,6 +953,9 @@ import { normalizeChatUI } from "../ui/protocol";
           height: 96px;
         }
         .recommendation h3 { margin-top: 2px; font-size: 15px; }
+        .product-title { border: 0; background: transparent; color: inherit; padding: 0; font: inherit; text-align: left; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+        .price { display: flex; align-items: baseline; gap: 7px; }
+        .price del { color: var(--pt-chat-muted, #68655f); font-size: 9px; }
         .recommendation div:nth-child(2) > p {
           display: -webkit-box;
           overflow: hidden;
@@ -913,7 +994,8 @@ import { normalizeChatUI } from "../ui/protocol";
         .message-actions a:focus-visible { outline: 2px solid var(--pt-accent); outline-offset: 2px; }
         .variants { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
         .variants label { display: grid; gap: 3px; color: #77736c; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
-        .variants select { min-width: 0; height: 31px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); color: var(--pt-chat-text, #171715); padding: 0 6px; font: 10px inherit; }
+        .variants select, .variant-locked { min-width: 0; height: 31px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); color: var(--pt-chat-text, #171715); padding: 0 6px; font: 10px inherit; }
+        .variant-locked { display: flex; align-items: center; color: var(--pt-chat-muted, #68655f); }
         .status-cards { display: grid; gap: 8px; margin-top: 10px; }
         .status-card { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); }
         .status-card small { color: var(--pt-chat-muted, #68655f); text-transform: uppercase; letter-spacing: .1em; font-size: 8px; }
@@ -931,6 +1013,11 @@ import { normalizeChatUI } from "../ui/protocol";
         .composer:focus-within { border-color: var(--pt-accent); }
         .composer textarea:focus-visible { outline: none; }
         .composer textarea { min-height: 47px; padding-block: 14px; }
+        .legal-consent { margin: 0 14px 8px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); padding: 11px; }
+        .legal-consent p { margin: 0 0 9px; color: var(--pt-chat-muted, #68655f); font-size: 9px; line-height: 1.45; }
+        .legal-consent a { color: var(--pt-chat-text, #171715); text-underline-offset: 2px; }
+        .legal-consent button { width: 100%; min-height: 34px; border: 1px solid var(--pt-accent); background: var(--pt-accent); color: #fff; cursor: pointer; font: 600 9px/1 inherit; letter-spacing: .08em; text-transform: uppercase; }
+        .ai-disclaimer { margin: -1px 14px 7px; color: var(--pt-chat-muted, #68655f); font-size: 8px; line-height: 1.35; text-align: center; }
         .feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 7px; color: #77736c; font-size: 9px; }
         .feedback button { width: 27px; height: 27px; padding: 0; border: 1px solid #d7d2c9; border-radius: 50%; background: #fff; cursor: pointer; font-size: 12px; filter: grayscale(1); }
         .feedback button[aria-pressed="true"] { border-color: #171715; background: #ebe7df; filter: none; }

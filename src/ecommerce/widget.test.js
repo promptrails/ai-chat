@@ -40,6 +40,27 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelectorAll(".quick.initial button")).toHaveLength(2);
   });
 
+  it("requires explicit legal consent and persists the accepted version", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("workspace-id", "legal-workspace");
+    widget.setAttribute("agent-id", "legal-agent");
+    widget.setAttribute("legal-notice", "Devam ederek aydınlatma metnini kabul edersin.");
+    widget.setAttribute("legal-url", "https://shop.example.com/privacy");
+    widget.setAttribute("legal-link-label", "Aydınlatma metni");
+    widget.setAttribute("legal-accept-label", "Kabul et");
+    widget.setAttribute("legal-consent-version", "2026-08");
+    document.body.appendChild(widget);
+
+    expect(widget.shadowRoot?.querySelector(".composer")).toBeNull();
+    expect(widget.shadowRoot?.querySelector(".accept-legal")?.textContent).toBe("Kabul et");
+    widget.shadowRoot?.querySelector(".accept-legal")?.click();
+
+    expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
+    expect(globalThis.localStorage.getItem(
+      "promptrails-shop-widget:legal-workspace:legal-agent:legal-consent:2026-08",
+    )).toContain('"version":"2026-08"');
+  });
+
   it("drops persisted state without a valid activity timestamp", () => {
     const storageKey = "promptrails-shop-widget:workspace-1:agent-1";
     globalThis.localStorage.setItem(
@@ -287,6 +308,40 @@ describe("PromptRails ecommerce widget", () => {
     });
   });
 
+  it("renders compare-at pricing, linked titles, and locks single variant options", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Pick",
+        products: [{
+          id: "discounted-product",
+          slug: "discounted-dress",
+          name: "Discounted Dress",
+          category: "Dresses",
+          price: 1200,
+          sizes: ["38"],
+          colors: ["Black"],
+          attributes: { compare_at_price: 1500 },
+          can_view: true,
+        }],
+      },
+    });
+    widget.messages = [{
+      role: "assistant",
+      text: answer.message,
+      products: answer.products,
+    }];
+
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelector(".product-title")?.textContent).toBe("Discounted Dress");
+    expect(widget.shadowRoot?.querySelector(".price del")?.textContent).toContain("1.500");
+    expect(widget.shadowRoot?.querySelectorAll(".variant-locked")).toHaveLength(2);
+    expect(widget.shadowRoot?.querySelectorAll('[data-variant="size"], [data-variant="color"]')).toHaveLength(0);
+  });
+
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
@@ -454,9 +509,9 @@ describe("PromptRails ecommerce widget", () => {
     }];
     widget.paintMessages();
 
-    widget.shadowRoot.querySelector("[data-view]").click();
+    widget.shadowRoot.querySelector(".recommendation-actions [data-view]").click();
 
-    expect(widget.shadowRoot.querySelector("[data-view]")?.textContent).toBe("İncele");
+    expect(widget.shadowRoot.querySelector(".recommendation-actions [data-view]")?.textContent).toBe("İncele");
     expect(widget.shadowRoot.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
   });
 

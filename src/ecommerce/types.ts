@@ -29,6 +29,7 @@ export interface ShopAssistantEventMap {
   "promptrails:open": CustomEvent<Record<string, never>>;
   "promptrails:close": CustomEvent<Record<string, never>>;
   "promptrails:session-new": CustomEvent<Record<string, never>>;
+  "promptrails:legal-consent": CustomEvent<{ acceptedAt: number; version: string }>;
   "promptrails:product-view": CustomEvent<ProductViewDetail>;
   "promptrails:cart-add": CustomEvent<CartAddDetail>;
   "promptrails:action-open": CustomEvent<ActionOpenDetail>;
