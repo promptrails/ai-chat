@@ -432,6 +432,16 @@ describe("PromptRails ecommerce widget", () => {
     }));
   });
 
+  it("keeps product photo and title styles separate from action buttons", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    const css = `${widget.styles("#111")}${widget.compactStyles()}`;
+
+    expect(css).toContain(".product-image-link{display:block;grid-column:auto;min-height:0");
+    expect(css).toContain(".product-title{display:block;width:100%;min-height:0");
+    expect(css).toContain(".recommendation-actions button{grid-column:auto;min-height:34px");
+    expect(css).not.toContain(".recommendation button{grid-column:1/-1");
+  });
+
   it("keeps structured page context out of the visible user message", async () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);
