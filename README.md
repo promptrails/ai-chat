@@ -44,7 +44,7 @@ key in a storefront.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.2/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"
@@ -60,7 +60,7 @@ key in a storefront.
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.2/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
@@ -106,7 +106,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.2/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/ecommerce.global.js"
   defer
 ></script>
 

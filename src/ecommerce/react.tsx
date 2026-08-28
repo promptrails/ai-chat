@@ -18,6 +18,7 @@ export interface ShopAssistantProps {
   assistantMark?: string;
   locale?: string;
   accentColor?: string;
+  themeCss?: string;
   persistSession?: boolean;
   sessionMaxAge?: number;
   showToolActivity?: boolean;
@@ -50,6 +51,7 @@ const attributes = [
   ["assistantMark", "assistant-mark"],
   ["locale", "locale"],
   ["accentColor", "accent-color"],
+  ["themeCss", "theme-css"],
   ["persistSession", "persist-session"],
   ["sessionMaxAge", "session-max-age"],
   ["showToolActivity", "show-tool-activity"],

@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.2/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -209,6 +209,12 @@ For a fully custom theme, set `stylesheet-url` to an HTTPS or same-site CSS
 file. It is loaded inside the Shadow DOM after the built-in styles, so scoped
 selectors such as `.panel`, `.recommendation`, and `.composer` can override the
 default editorial theme. Include the CSS origin in the site's `style-src` CSP.
+
+For a self-contained embed, set `theme-css` to the complete theme string. The
+widget owns and reapplies this style after every internal render, including
+legal-consent acceptance and new-session transitions. The value is assigned as
+CSS text rather than parsed as HTML; use `style-nonce` when the host CSP requires
+one.
 
 ## JavaScript customization
 

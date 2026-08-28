@@ -195,7 +195,7 @@ import { normalizeChatUI } from "../ui/protocol";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "greeting", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
     }
 
     constructor() {
@@ -288,6 +288,7 @@ import { normalizeChatUI } from "../ui/protocol";
         currency: this.getAttribute("currency")?.trim().toLocaleUpperCase() || "TRY",
         locale: this.getAttribute("locale")?.trim() || "tr-TR",
         stylesheetUrl: stylesheetUrl(this.getAttribute("stylesheet-url")),
+        themeCss: this.getAttribute("theme-css") || "",
         styleNonce: this.getAttribute("style-nonce")?.trim() || "",
         persistSession: this.getAttribute("persist-session") !== "false",
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
@@ -423,8 +424,19 @@ import { normalizeChatUI } from "../ui/protocol";
           ${aiDisclaimer ? `<p class="ai-disclaimer" part="ai-disclaimer">${safe(aiDisclaimer)}</p>` : ""}
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
         </section>`;
+      this.applyThemeCss();
       this.paintMessages();
       this.bind();
+    }
+
+    applyThemeCss() {
+      const { themeCss, styleNonce } = this.config;
+      if (!themeCss) return;
+      const style = document.createElement("style");
+      style.dataset.promptrailsTheme = "true";
+      if (styleNonce) style.setAttribute("nonce", styleNonce);
+      style.textContent = themeCss;
+      this.root.append(style);
     }
 
     bind() {

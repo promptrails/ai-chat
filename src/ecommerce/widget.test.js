@@ -61,6 +61,25 @@ describe("PromptRails ecommerce widget", () => {
     )).toContain('"version":"2026-08"');
   });
 
+  it("preserves inline theme CSS after legal consent rerenders the shell", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("workspace-id", "themed-workspace");
+    widget.setAttribute("agent-id", "themed-agent");
+    widget.setAttribute("theme-css", ".quick button { border-radius: 0; }");
+    widget.setAttribute("legal-notice", "Devam etmek için kabul et.");
+    widget.setAttribute("legal-url", "https://shop.example.com/privacy");
+    document.body.appendChild(widget);
+
+    expect(widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent)
+      .toContain("border-radius: 0");
+
+    widget.shadowRoot?.querySelector(".accept-legal")?.click();
+
+    expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
+    expect(widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent)
+      .toContain("border-radius: 0");
+  });
+
   it("drops persisted state without a valid activity timestamp", () => {
     const storageKey = "promptrails-shop-widget:workspace-1:agent-1";
     globalThis.localStorage.setItem(
