@@ -16,6 +16,12 @@ export interface ShopAssistantProps {
   brand?: string;
   assistantName?: string;
   assistantMark?: string;
+  launcherTitle?: string;
+  launcherSubtitle?: string;
+  launcherIcon?: "arrow" | "message";
+  greeting?: string;
+  greetingMode?: "welcome" | "message";
+  placeholder?: string;
   locale?: string;
   accentColor?: string;
   themeCss?: string;
@@ -23,6 +29,8 @@ export interface ShopAssistantProps {
   sessionMaxAge?: number;
   showToolActivity?: boolean;
   showActivityDuration?: boolean;
+  showQuantity?: boolean;
+  colorPicker?: "select" | "swatches";
   toolLabels?: ToolActivityLabels;
   allowedActionOrigins?: string[];
   closeOnProductView?: boolean;
@@ -30,6 +38,7 @@ export interface ShopAssistantProps {
   legalUrl?: string;
   legalLinkLabel?: string;
   legalAcceptLabel?: string;
+  legalConsentRequired?: boolean;
   legalConsentVersion?: string;
   legalConsentMaxAge?: number;
   aiDisclaimer?: string;
@@ -49,6 +58,12 @@ const attributes = [
   ["brand", "brand"],
   ["assistantName", "assistant-name"],
   ["assistantMark", "assistant-mark"],
+  ["launcherTitle", "launcher-title"],
+  ["launcherSubtitle", "launcher-subtitle"],
+  ["launcherIcon", "launcher-icon"],
+  ["greeting", "greeting"],
+  ["greetingMode", "greeting-mode"],
+  ["placeholder", "placeholder"],
   ["locale", "locale"],
   ["accentColor", "accent-color"],
   ["themeCss", "theme-css"],
@@ -56,6 +71,8 @@ const attributes = [
   ["sessionMaxAge", "session-max-age"],
   ["showToolActivity", "show-tool-activity"],
   ["showActivityDuration", "show-activity-duration"],
+  ["showQuantity", "show-quantity"],
+  ["colorPicker", "color-picker"],
   ["toolLabels", "tool-labels"],
   ["allowedActionOrigins", "allowed-action-origins"],
   ["closeOnProductView", "close-on-product-view"],
@@ -63,6 +80,7 @@ const attributes = [
   ["legalUrl", "legal-url"],
   ["legalLinkLabel", "legal-link-label"],
   ["legalAcceptLabel", "legal-accept-label"],
+  ["legalConsentRequired", "legal-consent-required"],
   ["legalConsentVersion", "legal-consent-version"],
   ["legalConsentMaxAge", "legal-consent-max-age"],
   ["aiDisclaimer", "ai-disclaimer"],

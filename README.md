@@ -44,7 +44,7 @@ key in a storefront.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.0/dist/widget.global.js"
   data-provider="promptrails"
   data-base-url="https://api.promptrails.ai"
   data-api-key="BROWSER_ONLY_CHAT_KEY"
@@ -60,7 +60,7 @@ key in a storefront.
 Or initialize programmatically:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/widget.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.0/dist/widget.global.js"></script>
 <script>
   PromptRailsChat.init({
     provider: {
@@ -106,7 +106,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.0/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -119,13 +119,17 @@ React and talks directly to PromptRails' public browser chat runtime:
   brand="Acme"
   assistant-name="Acme Alışveriş Asistanı"
   assistant-mark="A"
+  launcher-icon="message"
+  greeting="Merhaba, aradığınız ürünü birlikte bulalım."
+  greeting-mode="message"
   persist-session="true"
   session-max-age="86400"
-  legal-notice="Devam ederek kişisel veri politikasını kabul edersiniz."
+  show-quantity="false"
+  color-picker="swatches"
+  legal-notice="Devam ederek {{link}} okuduğunuzu onaylıyorsunuz."
   legal-url="https://shop.example.com/privacy"
-  legal-accept-label="Kabul et"
-  legal-consent-version="2026-08"
-  legal-consent-max-age="180"
+  legal-link-label="Gizlilik politikası"
+  legal-consent-required="false"
   ai-disclaimer="Yanıtlar yapay zekâ tarafından oluşturulur ve hata içerebilir."
   allowed-action-origins='["https://api.whatsapp.com"]'
 ></promptrails-shop-assistant>
@@ -156,6 +160,12 @@ locked until the visitor explicitly accepts the notice. Acceptance is scoped to
 the workspace, agent, and `legal-consent-version`, then persisted in
 localStorage with a SameSite cookie fallback. Increment the version whenever
 the legal text changes to request consent again.
+
+Set `legal-consent-required="false"` for a passive linked notice below the
+available composer. The optional `{{link}}` marker controls the policy link's
+position and passive mode writes no consent cookie or localStorage record.
+`greeting-mode="message"` renders the greeting as the first assistant bubble;
+`launcher-icon="message"` selects the built-in outline chat icon.
 
 For bundled apps, import `@promptrails/ai-chat/ecommerce` to register the Web
 Component or use the typed `ShopAssistant` adapter from

@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.8.3/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.0/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -26,7 +26,9 @@ Pin a release in production:
   assistant-mark="A"
   launcher-title="Alışveriş asistanı"
   launcher-subtitle="Size özel öneriler"
+  launcher-icon="message"
   greeting="Merhaba, aradığınız ürünü birlikte bulalım."
+  greeting-mode="message"
   placeholder="Nasıl bir ürün arıyorsunuz?"
   quick-prompts='["Yeni gelenler","Bütçeme göre öner"]'
   currency="TRY"
@@ -36,9 +38,12 @@ Pin a release in production:
   session-max-age="86400"
   show-tool-activity="true"
   show-activity-duration="false"
-  legal-notice="Devam ederek kişisel veri politikasını kabul edersiniz."
+  show-quantity="false"
+  color-picker="swatches"
+  legal-notice="Devam ederek {{link}} okuduğunuzu onaylıyorsunuz."
   legal-url="https://shop.example.com/privacy"
   legal-link-label="Gizlilik politikası"
+  legal-consent-required="false"
   legal-accept-label="Kabul et"
   legal-consent-version="2026-08"
   legal-consent-max-age="180"
@@ -59,6 +64,16 @@ the current workspace and agent; changing the version asks the visitor again.
 365. Acceptance emits a composed `promptrails:legal-consent` event containing
 the accepted version and timestamp. `ai-disclaimer` adds a permanent compact
 notice below the composer.
+
+Set `legal-consent-required="false"` to keep the composer available and render
+the linked legal notice as a compact line below it. Use the optional
+`{{link}}` placeholder inside `legal-notice` to control where the safe policy
+link appears; without the placeholder the link is appended. Passive mode does
+not write consent state to localStorage or cookies.
+
+Use `greeting-mode="message"` when the greeting should share the assistant
+message-bubble language rather than the centered welcome hero. Set
+`launcher-icon="message"` for the built-in outline chat icon.
 
 ## Browser security boundary
 
@@ -150,6 +165,12 @@ Verified `compare_at_price` / `compareAtPrice` values render as a struck-through
 reference price only when they are greater than the current price. Product
 titles link to the same sanitized product URL as the inspect action. A single
 size or color is rendered as a locked value instead of a misleading selector.
+Set `show-quantity="false"` when the storefront always adds one item and does
+not need a quantity control inside recommendation cards. Set
+`color-picker="swatches"` to render accessible circular color choices instead
+of a select. Swatches use a bounded built-in palette and keep the verified
+color label visible; unknown labels receive a neutral fallback rather than
+model-provided CSS.
 
 For direct storefront cart integrations, include the verified tool-provided
 `selected_variant_id`. The sanitized value is emitted as `variantId` on
@@ -203,7 +224,10 @@ promptrails-shop-assistant {
 }
 ```
 
-Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`, `footer`, `message`, `product-card`, `status-card`, `action`, `activity`, `legal-consent`, and `ai-disclaimer`. Use `style-nonce` under a nonce-based CSP.
+Stable parts include `launcher`, `panel`, `header`, `messages`, `composer`,
+`footer`, `message`, `product-card`, `status-card`, `action`, `activity`,
+`legal-consent`, `legal-notice`, and `ai-disclaimer`. Use `style-nonce` under a
+nonce-based CSP.
 
 For a fully custom theme, set `stylesheet-url` to an HTTPS or same-site CSS
 file. It is loaded inside the Shadow DOM after the built-in styles, so scoped

@@ -61,6 +61,34 @@ describe("PromptRails ecommerce widget", () => {
     )).toContain('"version":"2026-08"');
   });
 
+  it("can show a passive legal notice without blocking the composer", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("legal-notice", "Devam ederek {{link}} okuduğunu onaylıyorsun.");
+    widget.setAttribute("legal-url", "https://shop.example.com/privacy");
+    widget.setAttribute("legal-link-label", "Gizlilik Politikası");
+    widget.setAttribute("legal-consent-required", "false");
+    document.body.appendChild(widget);
+
+    expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
+    expect(widget.shadowRoot?.querySelector(".accept-legal")).toBeNull();
+    expect(widget.shadowRoot?.querySelector(".legal-inline a")?.textContent)
+      .toBe("Gizlilik Politikası");
+    expect(widget.shadowRoot?.querySelector(".legal-inline")?.textContent)
+      .toContain("Devam ederek Gizlilik Politikası okuduğunu onaylıyorsun.");
+  });
+
+  it("supports a message-style greeting and message launcher icon", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("greeting", "Sana uygun parçaları birlikte bulalım.");
+    widget.setAttribute("greeting-mode", "message");
+    widget.setAttribute("launcher-icon", "message");
+    document.body.appendChild(widget);
+
+    expect(widget.shadowRoot?.querySelector(".welcome-message p")?.textContent)
+      .toBe("Sana uygun parçaları birlikte bulalım.");
+    expect(widget.shadowRoot?.querySelector(".launcher i svg")).not.toBeNull();
+  });
+
   it("preserves inline theme CSS after legal consent rerenders the shell", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("workspace-id", "themed-workspace");
@@ -78,6 +106,39 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
     expect(widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent)
       .toContain("border-radius: 0");
+  });
+
+  it("renders color swatches and can hide quantity selection", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("color-picker", "swatches");
+    widget.setAttribute("show-quantity", "false");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Öneri",
+      products: [{ id: "product-1", name: "Elbise", price: 100, colors: ["Siyah", "Bordo"] }],
+    }];
+    widget.paintMessages();
+
+    const swatches = widget.shadowRoot?.querySelectorAll("[data-color-value]");
+    expect(swatches).toHaveLength(2);
+    expect(widget.shadowRoot?.querySelector('[data-variant="quantity"]')).toBeNull();
+    swatches?.[1].click();
+    expect(widget.selectedVariants["product-1"].color).toBe("Bordo");
+    expect(swatches?.[1].getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("renders feedback controls with line icons instead of emoji", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("api-url", "https://api.example.com");
+    widget.setAttribute("agent-id", "agent-1");
+    widget.setAttribute("api-key", "browser-key");
+    document.body.appendChild(widget);
+    widget.messages = [{ role: "assistant", text: "Yanıt", executionId: "execution-1" }];
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelectorAll(".feedback button svg")).toHaveLength(2);
+    expect(widget.shadowRoot?.querySelector(".feedback")?.textContent).not.toMatch(/[👍👎]/u);
   });
 
   it("drops persisted state without a valid activity timestamp", () => {
