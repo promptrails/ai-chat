@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.0/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.1/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -302,7 +302,11 @@ Use `tool-labels` to provide brand-specific copy keyed by tool name:
 
 Set `show-tool-activity="false"` to retain the generic typing indicator without tool-specific updates. Elapsed seconds are hidden by default; set `show-activity-duration="true"` only when the storefront explicitly wants a timer. The React adapter exposes the same options as `showToolActivity`, `showActivityDuration`, and `toolLabels`.
 
-On mobile Safari the widget keeps composer and variant controls at a minimum 16px font size, preventing iOS from leaving the page auto-zoomed after focus. The fixed panel uses safe-area insets and does not rely on a competing viewport width declaration.
+On mobile the widget becomes an edge-to-edge `100dvh` conversation surface,
+respects safe-area insets, locks background page scrolling while open, and uses
+44px minimum touch targets. Opening the panel does not force the software
+keyboard; the visitor opts into typing by tapping the composer. Composer and
+variant controls retain a minimum 16px font size so iOS does not auto-zoom.
 
 Event payloads never execute model-provided JavaScript. Standalone links require
 an explicit exact-origin allowlist and remain native, isolated anchors. In the default

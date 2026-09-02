@@ -15,6 +15,7 @@ describe("PromptRails ecommerce widget", () => {
     vi.stubGlobal("localStorage", storage);
     vi.stubGlobal("sessionStorage", storage);
     document.body.innerHTML = "";
+    document.documentElement.style.overflow = "";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -87,6 +88,23 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".welcome-message p")?.textContent)
       .toBe("Sana uygun parçaları birlikte bulalım.");
     expect(widget.shadowRoot?.querySelector(".launcher i svg")).not.toBeNull();
+  });
+
+  it("locks background scrolling and avoids opening the keyboard on mobile", async () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    const input = widget.shadowRoot.querySelector("textarea");
+    const focus = vi.spyOn(input, "focus");
+
+    widget.open();
+    await Promise.resolve();
+
+    expect(document.documentElement.style.overflow).toBe("hidden");
+    expect(focus).not.toHaveBeenCalled();
+
+    widget.close();
+    expect(document.documentElement.style.overflow).toBe("");
   });
 
   it("preserves inline theme CSS after legal consent rerenders the shell", () => {

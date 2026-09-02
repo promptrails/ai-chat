@@ -256,6 +256,7 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     disconnectedCallback() {
+      this.setPageScrollLocked(false);
       window.removeEventListener("keydown", this.onWindowKey);
       window.removeEventListener("promptrails:cart-confirmed", this.onCartConfirmed);
       window.removeEventListener("promptrails:cart-failed", this.onCartFailed);
@@ -560,13 +561,35 @@ import { normalizeChatUI } from "../ui/protocol";
 
     toggle(next) {
       this.opened = next;
+      this.setPageScrollLocked(next);
       this.root.querySelector(".panel")?.classList.toggle("is-open", next);
       this.root.querySelector(".panel")?.setAttribute("aria-hidden", String(!next));
       const launcher = this.root.querySelector(".launcher");
       launcher?.setAttribute("aria-expanded", String(next));
       if (launcher) launcher.hidden = next;
-      if (next) requestAnimationFrame(() => (this.root.querySelector("textarea") || this.root.querySelector(".accept-legal"))?.focus());
+      if (next && !this.isMobileViewport()) {
+        requestAnimationFrame(() => (this.root.querySelector("textarea") || this.root.querySelector(".accept-legal"))?.focus());
+      }
       this.emit(next ? "promptrails:open" : "promptrails:close", {});
+    }
+
+    isMobileViewport() {
+      return typeof window.matchMedia === "function"
+        && window.matchMedia("(max-width: 560px), (pointer: coarse)").matches;
+    }
+
+    setPageScrollLocked(locked) {
+      if (locked && this.isMobileViewport()) {
+        if (this.pageOverflowBeforeOpen === undefined) {
+          this.pageOverflowBeforeOpen = document.documentElement.style.overflow;
+        }
+        document.documentElement.style.overflow = "hidden";
+        return;
+      }
+      if (this.pageOverflowBeforeOpen !== undefined) {
+        document.documentElement.style.overflow = this.pageOverflowBeforeOpen;
+        this.pageOverflowBeforeOpen = undefined;
+      }
     }
 
     open() { this.toggle(true); }
@@ -1090,14 +1113,40 @@ import { normalizeChatUI } from "../ui/protocol";
         @media (max-width: 560px) {
           .panel {
             position: fixed !important;
-            inset: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)) !important;
-            width: calc(100vw - 16px) !important;
-            min-width: 0 !important;
-            max-width: calc(100vw - 16px) !important;
-            height: calc(100dvh - 16px) !important;
-            max-height: calc(100dvh - 16px) !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100dvh !important;
+            max-height: 100dvh !important;
+            border: 0 !important;
+            box-shadow: none !important;
           }
-          .composer textarea, .variants select { font-size: 16px; }
+          .panel header {
+            min-height: calc(60px + env(safe-area-inset-top));
+            padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+          }
+          .panel header strong { font-size: 14px; }
+          .panel-actions button { width: 44px; height: 44px; }
+          .conversation {
+            padding: 16px max(16px, env(safe-area-inset-right)) 18px max(16px, env(safe-area-inset-left));
+            -webkit-overflow-scrolling: touch;
+          }
+          .quick { gap: 8px; }
+          .quick.initial { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 0 16px; }
+          .quick button { min-height: 44px; }
+          .variants { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+          .variants select, .variant-locked { height: 44px; padding-inline: 10px; }
+          .recommendation-actions button { min-height: 44px; }
+          .composer {
+            margin: 0 max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+            grid-template-columns: minmax(0, 1fr) 52px;
+          }
+          .composer textarea { min-height: 56px; max-height: 112px; padding: 17px 14px; }
+          .composer button { width: 44px; height: 44px; margin: 0 5px 6px 0; }
+          .legal-inline, .ai-disclaimer { margin-inline: 16px; font-size: 10px; }
+          .panel > footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); font-size: 9px; }
+          .composer textarea, .variants select {
+            font-size: 16px;
+          }
         }
       `;
     }
