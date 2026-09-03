@@ -118,6 +118,7 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".variants")).toBeNull();
     expect(widget.shadowRoot?.querySelector("[data-add]")).toBeNull();
     expect(widget.shadowRoot?.querySelector("[data-view]")).not.toBeNull();
+    expect(widget.shadowRoot?.querySelector(".recommendations-list")?.classList.contains("is-summary")).toBe(true);
     expect(widget.shadowRoot?.querySelector(".recommendation-actions")?.classList.contains("is-summary")).toBe(true);
   });
 

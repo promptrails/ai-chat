@@ -177,7 +177,9 @@ model-provided CSS.
 Set `product-card-mode="summary"` when chat should only present the verified
 image, name, price, reason, and inspect action. Summary mode intentionally
 hides variant controls and add-to-cart while keeping the product image and
-title navigable. The default `commerce` mode remains unchanged.
+title navigable. Summary cards render as a compact, touch-scrollable horizontal
+rail so the conversation remains visible on narrow screens. The default
+`commerce` mode remains unchanged.
 
 For direct storefront cart integrations, include the verified tool-provided
 `selected_variant_id`. The sanitized value is emitted as `variantId` on

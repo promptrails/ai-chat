@@ -946,7 +946,7 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!products.length) return "";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
       const summary = this.config.productCardMode === "summary";
-      return `<div class="recommendations-list">${products.map((product) => `<article class="recommendation" part="card product-card">
+      return `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation" part="card product-card">
         ${product.canView === false
           ? `<div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>`
           : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`}
@@ -1060,6 +1060,20 @@ import { normalizeChatUI } from "../ui/protocol";
           min-height: 31px;
         }
         .recommendation-actions.is-summary { grid-template-columns: 1fr; }
+        .recommendations-list.is-summary {
+          display: flex;
+          gap: 9px;
+          overflow-x: auto;
+          overscroll-behavior-inline: contain;
+          padding: 0 1px 7px;
+          scroll-snap-type: inline mandatory;
+          scrollbar-width: thin;
+        }
+        .recommendations-list.is-summary .recommendation {
+          flex: 0 0 min(72%, 250px);
+          align-content: start;
+          scroll-snap-align: start;
+        }
         .message-actions { display: grid; gap: 7px; margin-top: 8px; }
         .message-actions a {
           min-height: 38px;
