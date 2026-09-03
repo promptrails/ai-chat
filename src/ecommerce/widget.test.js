@@ -68,14 +68,18 @@ describe("PromptRails ecommerce widget", () => {
     widget.setAttribute("legal-url", "https://shop.example.com/privacy");
     widget.setAttribute("legal-link-label", "Gizlilik Politikası");
     widget.setAttribute("legal-consent-required", "false");
+    widget.setAttribute("ai-disclaimer", "Yanıtlar yapay zekâ tarafından oluşturulur.");
     document.body.appendChild(widget);
 
     expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
     expect(widget.shadowRoot?.querySelector(".accept-legal")).toBeNull();
-    expect(widget.shadowRoot?.querySelector(".legal-inline a")?.textContent)
+    expect(widget.shadowRoot?.querySelector(".legal-summary a")?.textContent)
       .toBe("Gizlilik Politikası");
-    expect(widget.shadowRoot?.querySelector(".legal-inline")?.textContent)
+    expect(widget.shadowRoot?.querySelector(".legal-summary")?.textContent)
       .toContain("Devam ederek Gizlilik Politikası okuduğunu onaylıyorsun.");
+    expect(widget.shadowRoot?.querySelector(".legal-summary")?.textContent)
+      .toContain("· Yanıtlar yapay zekâ tarafından oluşturulur.");
+    expect(widget.shadowRoot?.querySelectorAll(".legal-summary")).toHaveLength(1);
   });
 
   it("supports a message-style greeting and message launcher icon", () => {
@@ -104,14 +108,14 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".launcher i svg")).not.toBeNull();
   });
 
-  it("renders summary product cards without variants or add-to-cart", () => {
+  it("keeps summary product cards compact and opens options from a plus button", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-card-mode", "summary");
     document.body.appendChild(widget);
     widget.messages = [{
       role: "assistant",
       text: "Öneri",
-      products: [{ id: "product-1", slug: "elbise", name: "Elbise", price: 100, sizes: ["36", "38"], colors: ["Siyah"] }],
+      products: [{ id: "product-1", slug: "elbise", name: "Elbise", price: 100, sizes: ["36", "38"], colors: ["Siyah"], canAdd: true }],
     }];
     widget.paintMessages();
 
@@ -119,7 +123,57 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector("[data-add]")).toBeNull();
     expect(widget.shadowRoot?.querySelector("[data-view]")).not.toBeNull();
     expect(widget.shadowRoot?.querySelector(".recommendations-list")?.classList.contains("is-summary")).toBe(true);
-    expect(widget.shadowRoot?.querySelector(".recommendation-actions")?.classList.contains("is-summary")).toBe(true);
+    expect(widget.shadowRoot?.querySelector(".recommendation-actions")).toBeNull();
+    widget.shadowRoot?.querySelector("[data-cart-drawer-open]")?.click();
+    expect(widget.shadowRoot?.querySelector(".cart-drawer")?.hidden).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".cart-drawer [data-add]")).not.toBeNull();
+  });
+
+  it("selects an in-stock variant in the product drawer before emitting cart-add", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-card-mode", "summary");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({ output: { message: "Öneri", products: [{
+      id: "product-1", name: "Elbise", price: 100,
+      variants: [
+        { id: "variant-s", size: "S", color: "Siyah", stock: 2 },
+        { id: "variant-m", size: "M", color: "Siyah", stock: 1 },
+      ],
+    }] } });
+    widget.messages = [{ role: "assistant", ...answer }];
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:cart-add", listener);
+    widget.paintMessages();
+
+    widget.shadowRoot.querySelector("[data-cart-drawer-open]").click();
+    widget.shadowRoot.querySelector('[data-drawer-option="size"][data-option-value="M"]').click();
+    widget.shadowRoot.querySelector(".cart-drawer [data-add]").click();
+
+    expect(listener.mock.calls[0][0].detail).toMatchObject({
+      productId: "product-1",
+      variantId: "variant-m",
+      size: "M",
+      color: "Siyah",
+      quantity: 1,
+    });
+  });
+
+  it("does not render a plus or cart action for out-of-stock products", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-card-mode", "summary");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({ output: { message: "Öneri", products: [{
+      id: "product-1", name: "Elbise", price: 100,
+      variants: [{ id: "variant-s", size: "S", color: "Siyah", stock: 0 }],
+    }] } });
+    widget.messages = [{ role: "assistant", ...answer }];
+    widget.paintMessages();
+
+    expect(answer.products[0].inStock).toBe(false);
+    expect(widget.shadowRoot.querySelector("[data-cart-drawer-open]")).toBeNull();
+    expect(widget.shadowRoot.querySelector("[data-add]")).toBeNull();
   });
 
   it("adds accessible carousel controls when more than one summary product is shown", () => {

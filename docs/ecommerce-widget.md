@@ -174,13 +174,15 @@ of a select. Swatches use a bounded built-in palette and keep the verified
 color label visible; unknown labels receive a neutral fallback rather than
 model-provided CSS.
 
-Set `product-card-mode="summary"` when chat should only present the verified
-image, name, price, reason, and inspect action. Summary mode intentionally
-hides variant controls and add-to-cart while keeping the product image and
-title navigable. Summary cards render as an equal-height horizontal carousel
-with touch/trackpad scrolling, snap alignment, and accessible previous/next
-controls so the conversation remains visible on narrow screens. The default
-`commerce` mode remains unchanged.
+Set `product-card-mode="summary"` for compact, equal-height recommendation
+cards in a horizontal carousel. The verified image and title remain navigable.
+When an in-stock product can be purchased, a compact add trigger opens an
+accessible bottom drawer containing only the available size/color choices and
+the add-to-cart action. Products with no available variants do not render the
+add trigger. Touch/trackpad scrolling, snap alignment, and accessible
+previous/next controls keep the conversation visible on narrow screens. Set
+`show-quantity="false"` to omit quantity from the drawer and always emit a
+quantity of one. The default `commerce` mode keeps its inline controls.
 
 For direct storefront cart integrations, include the verified tool-provided
 `selected_variant_id`. The sanitized value is emitted as `variantId` on

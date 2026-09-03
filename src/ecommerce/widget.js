@@ -114,6 +114,15 @@ import { normalizeChatUI } from "../ui/protocol";
     }
     return 0;
   };
+  const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== "");
+  const availability = (value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value > 0;
+    const normalized = plainText(value).toLocaleLowerCase("tr-TR");
+    if (["false", "0", "no", "hayır", "hayir", "out_of_stock", "out of stock", "stokta yok", "sold_out", "sold out"].includes(normalized)) return false;
+    if (["true", "1", "yes", "evet", "in_stock", "in stock", "stokta", "available"].includes(normalized)) return true;
+    return undefined;
+  };
   const colorSwatch = (value) => {
     const color = boundedText(value, 40).toLocaleLowerCase("tr-TR");
     const palette = {
@@ -158,15 +167,31 @@ import { normalizeChatUI } from "../ui/protocol";
       priceValue?.value,
       attributes.sale_price,
     );
-    const variants = Array.isArray(attributes.variants) ? attributes.variants : [];
-    const sizes = uniqueText([
-      ...(Array.isArray(attributes.sizes) ? attributes.sizes : []),
-      ...variants.map((variant) => variant?.size).filter(Boolean),
-    ]);
-    const colors = uniqueText([
-      ...(Array.isArray(attributes.colors) ? attributes.colors : []),
-      ...variants.map((variant) => variant?.color).filter(Boolean),
-    ]);
+    const variants = (Array.isArray(attributes.variants) ? attributes.variants : []).map((variant) => {
+      const stockValue = firstDefined(
+        variant?.stock,
+        variant?.stock_quantity,
+        variant?.stockQuantity,
+        variant?.inventory_quantity,
+        variant?.inventoryQuantity,
+      );
+      const availableValue = firstDefined(variant?.available, variant?.is_available, variant?.isAvailable, variant?.in_stock, variant?.inStock);
+      const stockAvailability = stockValue === undefined ? undefined : Number(stockValue) > 0;
+      return {
+        id: boundedText(variant?.id ?? variant?.variant_id ?? variant?.variantId, 160),
+        size: boundedText(variant?.size, 120),
+        color: boundedText(variant?.color, 120),
+        available: availability(availableValue) ?? stockAvailability ?? true,
+      };
+    });
+    const availableVariants = variants.filter((variant) => variant.available);
+    const optionVariants = availableVariants.length ? availableVariants : variants;
+    const sizes = uniqueText(variants.length
+      ? optionVariants.map((variant) => variant.size)
+      : Array.isArray(attributes.sizes) ? attributes.sizes : []);
+    const colors = uniqueText(variants.length
+      ? optionVariants.map((variant) => variant.color)
+      : Array.isArray(attributes.colors) ? attributes.colors : []);
     const requestedSize = boundedText(attributes.selected_size ?? attributes.selectedSize, 120);
     const requestedColor = boundedText(attributes.selected_color ?? attributes.selectedColor, 120);
     const selectedSize = sizes.includes(requestedSize) ? requestedSize : "";
@@ -175,13 +200,31 @@ import { normalizeChatUI } from "../ui/protocol";
       attributes.selected_variant_id ?? attributes.selectedVariantId ?? attributes.variant_id ?? attributes.variantId,
       160,
     );
-    const selectedVariant = variants.find((variant) => {
-      const candidateID = boundedText(variant?.id ?? variant?.variant_id, 160);
+    const selectedVariant = availableVariants.find((variant) => {
+      const candidateID = variant.id;
       if (variantId && candidateID === variantId) return true;
-      const sizeMatches = !selectedSize || boundedText(variant?.size, 120) === selectedSize;
-      const colorMatches = !selectedColor || boundedText(variant?.color, 120) === selectedColor;
+      const sizeMatches = !selectedSize || variant.size === selectedSize;
+      const colorMatches = !selectedColor || variant.color === selectedColor;
       return sizeMatches && colorMatches;
     });
+    const productAvailability = availability(firstDefined(
+      attributes.available,
+      attributes.is_available,
+      attributes.isAvailable,
+      attributes.in_stock,
+      attributes.inStock,
+      attributes.status,
+    ));
+    const productStock = firstDefined(
+      attributes.stock,
+      attributes.stock_quantity,
+      attributes.stockQuantity,
+      attributes.inventory_quantity,
+      attributes.inventoryQuantity,
+    );
+    const inStock = productAvailability !== false
+      && (productStock === undefined || Number(productStock) > 0)
+      && (!variants.length || availableVariants.length > 0);
     const compareAtValue = attributes.compare_at_price ?? attributes.compareAtPrice
       ?? attributes.compare_at ?? attributes.compareAt ?? attributes.original_price
       ?? attributes.originalPrice ?? attributes.list_price ?? attributes.listPrice;
@@ -208,7 +251,9 @@ import { normalizeChatUI } from "../ui/protocol";
       colors,
       selectedSize,
       selectedColor,
-      variantId,
+      variantId: selectedVariant?.id || (variants.some((variant) => variant.id) ? availableVariants[0]?.id || "" : variantId),
+      variants,
+      inStock,
     };
   };
 
@@ -229,6 +274,8 @@ import { normalizeChatUI } from "../ui/protocol";
       this.ready = false;
       this.activeTools = new Map();
       this.cartTimers = new Map();
+      this.cartDrawerProductId = "";
+      this.cartDrawerTrigger = null;
       this.activityStartedAt = 0;
       this.activityTimer = 0;
       this.onWindowKey = (event) => this.handleWindowKey(event);
@@ -346,6 +393,7 @@ import { normalizeChatUI } from "../ui/protocol";
         toolWorking: "Checking the relevant information…", toolComplete: "Information found. Preparing your answer…",
         openLink: "Open link", whatsapp: "Message on WhatsApp", accept: "Accept", privacyPolicy: "Privacy policy",
         products: "Products", previousProducts: "Previous products", nextProducts: "Next products",
+        chooseOptions: "Choose product options", closeOptions: "Close product options", chooseSize: "Choose a size",
       };
       const turkish = {
         open: "Sohbeti aç", close: "Sohbeti küçült", newChat: "Yeni sohbet başlat", online: "Çevrimiçi",
@@ -358,6 +406,7 @@ import { normalizeChatUI } from "../ui/protocol";
         toolWorking: "İlgili bilgileri kontrol ediyorum…", toolComplete: "Bilgileri buldum, yanıtınızı hazırlıyorum…",
         openLink: "Bağlantıyı aç", whatsapp: "WhatsApp'tan yaz", accept: "Kabul et", privacyPolicy: "Gizlilik politikası",
         products: "Ürünler", previousProducts: "Önceki ürünler", nextProducts: "Sonraki ürünler",
+        chooseOptions: "Ürün seçeneklerini belirle", closeOptions: "Ürün seçeneklerini kapat", chooseSize: "Beden seç",
       };
       let custom = {};
       try { custom = JSON.parse(this.getAttribute("translations") || "{}"); } catch { /* invalid overrides are ignored */ }
@@ -442,6 +491,13 @@ import { normalizeChatUI } from "../ui/protocol";
           ? safe(legalNotice).replace("{{link}}", legalLink)
           : `${safe(legalNotice)} ${legalLink}`
         : "";
+      const inlineNotices = [
+        consented && legalText && !this.consentRequired ? legalText : "",
+        aiDisclaimer ? safe(aiDisclaimer) : "",
+      ].filter(Boolean);
+      const noticeText = inlineNotices.length
+        ? `<p class="legal-summary" part="legal-notice ai-disclaimer">${inlineNotices.join(' <span aria-hidden="true">·</span> ')}</p>`
+        : "";
       this.root.innerHTML = `<style${styleNonce ? ` nonce="${safe(styleNonce)}"` : ""}>${this.styles(accent)}${this.compactStyles()}</style>${customStylesheet ? `<link rel="stylesheet" href="${safe(customStylesheet)}">` : ""}
         <button class="launcher" part="launcher" type="button" aria-label="${safe(labels.open)}" aria-expanded="${this.opened}" aria-controls="pt-shop-panel" ${this.opened ? "hidden" : ""}>
           ${showLauncherMark ? `<span class="launcher-mark">${safe(assistantMark)}</span>` : ""}<span><strong>${safe(launcherTitle)}</strong>${showLauncherSubtitle ? `<small>${safe(launcherSubtitle)}</small>` : ""}</span><i aria-hidden="true">${launcherIcon === "message" ? CHAT_ICON : "↗"}</i>
@@ -455,12 +511,15 @@ import { normalizeChatUI } from "../ui/protocol";
             <div class="offline" ${navigator.onLine ? "hidden" : ""}>${safe(labels.offline)}</div>
             <div class="typing" part="activity" role="status" aria-live="polite" hidden><span></span><span></span><span></span><em>${safe(assistantName)} ${safe(labels.thinking)}</em>${this.config.showActivityDuration ? "<time>0 sn</time>" : ""}</div>
           </div>
-          ${consented ? `<form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>${legalText && !this.consentRequired ? `<p class="legal-inline" part="legal-notice">${legalText}</p>` : ""}` : `<aside class="legal-consent" part="legal-consent" role="note"><p>${legalText}</p><button class="accept-legal" type="button">${safe(legalAcceptLabel || labels.accept)}</button></aside>`}
-          ${aiDisclaimer ? `<p class="ai-disclaimer" part="ai-disclaimer">${safe(aiDisclaimer)}</p>` : ""}
+          <button class="cart-drawer-backdrop" type="button" aria-label="${safe(labels.closeOptions)}" hidden></button>
+          <aside class="cart-drawer" part="cart-drawer" role="dialog" aria-modal="true" aria-label="${safe(labels.chooseOptions)}" hidden></aside>
+          ${consented ? `<form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>` : `<aside class="legal-consent" part="legal-consent" role="note"><p>${legalText}</p><button class="accept-legal" type="button">${safe(legalAcceptLabel || labels.accept)}</button></aside>`}
+          ${noticeText}
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
         </section>`;
       this.applyThemeCss();
       this.paintMessages();
+      if (this.cartDrawerProductId) this.renderCartDrawer();
       this.bind();
     }
 
@@ -531,19 +590,13 @@ import { normalizeChatUI } from "../ui/protocol";
           ...(product?.url ? { url: product.url } : {}),
         });
       }; });
+      this.root.querySelectorAll("[data-cart-drawer-open]").forEach((button) => { button.onclick = () => {
+        this.openCartDrawer(button.dataset.cartDrawerOpen, button);
+      }; });
       this.root.querySelectorAll("[data-add]").forEach((button) => { button.onclick = () => {
         const product = this.findProduct(button.dataset.add);
         if (!product) return;
-        button.disabled = true;
-        button.dataset.idleLabel = button.textContent || this.labels.add;
-        button.textContent = this.labels.adding;
-        const selected = this.selectedVariants?.[product.id] || {};
-        this.emit("promptrails:cart-add", { productId: product.id, variantId: product.variantId || undefined, slug: product.slug, size: selected.size || product.selectedSize || product.sizes?.[0], color: selected.color || product.selectedColor || product.colors?.[0], quantity: Number(selected.quantity) || 1 });
-        window.clearTimeout(this.cartTimers.get(product.id));
-        this.cartTimers.set(product.id, window.setTimeout(() => {
-          this.cartFailed({ detail: { productId: product.id } });
-          this.emit("promptrails:error", { code: "cart_confirmation_timeout", productId: product.id });
-        }, 10_000));
+        this.requestCartAdd(product, button);
       }; });
       this.root.querySelectorAll("[data-variant]").forEach((select) => {
         const product = this.findProduct(select.dataset.productId);
@@ -586,9 +639,140 @@ import { normalizeChatUI } from "../ui/protocol";
           label: link.textContent?.trim() || "",
         });
       });
+      const drawerBackdrop = this.root.querySelector(".cart-drawer-backdrop");
+      if (drawerBackdrop) drawerBackdrop.onclick = () => this.closeCartDrawer();
+      this.bindCartDrawer();
+    }
+
+    availableVariants(product) {
+      return (Array.isArray(product?.variants) ? product.variants : [])
+        .filter((variant) => variant?.available !== false);
+    }
+
+    resolvedVariant(product, selected = {}) {
+      const variants = this.availableVariants(product);
+      if (!variants.length) return product?.variantId ? { id: product.variantId } : null;
+      return variants.find((variant) => (
+        (!selected.size || variant.size === selected.size)
+        && (!selected.color || variant.color === selected.color)
+      )) || null;
+    }
+
+    openCartDrawer(productId, trigger) {
+      const product = this.findProduct(productId);
+      if (!product || product.canAdd === false || product.inStock === false) return;
+      const variants = this.availableVariants(product);
+      const preferred = variants.find((variant) => variant.id === product.variantId)
+        || variants.find((variant) => (
+          (!product.selectedSize || variant.size === product.selectedSize)
+          && (!product.selectedColor || variant.color === product.selectedColor)
+        ))
+        || variants[0];
+      this.selectedVariants ||= {};
+      this.selectedVariants[product.id] = {
+        size: preferred?.size || product.selectedSize || product.sizes?.[0] || "",
+        color: preferred?.color || product.selectedColor || product.colors?.[0] || "",
+        quantity: Number(this.selectedVariants[product.id]?.quantity) || 1,
+      };
+      this.cartDrawerProductId = product.id;
+      this.cartDrawerTrigger = trigger || null;
+      this.renderCartDrawer();
+    }
+
+    closeCartDrawer({ restoreFocus = true } = {}) {
+      const drawer = this.root.querySelector(".cart-drawer");
+      const backdrop = this.root.querySelector(".cart-drawer-backdrop");
+      if (drawer) drawer.hidden = true;
+      if (backdrop) backdrop.hidden = true;
+      this.cartDrawerProductId = "";
+      if (restoreFocus) this.cartDrawerTrigger?.focus();
+      this.cartDrawerTrigger = null;
+    }
+
+    renderCartDrawer() {
+      const drawer = this.root.querySelector(".cart-drawer");
+      const backdrop = this.root.querySelector(".cart-drawer-backdrop");
+      const product = this.findProduct(this.cartDrawerProductId);
+      if (!drawer || !backdrop || !product || product.canAdd === false || product.inStock === false) {
+        this.closeCartDrawer({ restoreFocus: false });
+        return;
+      }
+      const selected = this.selectedVariants?.[product.id] || {};
+      const variants = this.availableVariants(product);
+      const sizes = uniqueText(variants.map((variant) => variant.size).filter(Boolean).length
+        ? variants.map((variant) => variant.size)
+        : product.sizes);
+      if (sizes.length && !sizes.includes(selected.size)) selected.size = sizes[0];
+      const colorVariants = variants.filter((variant) => !selected.size || !variant.size || variant.size === selected.size);
+      const colors = uniqueText(colorVariants.map((variant) => variant.color).filter(Boolean).length
+        ? colorVariants.map((variant) => variant.color)
+        : product.colors);
+      if (colors.length && !colors.includes(selected.color)) selected.color = colors[0];
+      const resolved = this.resolvedVariant(product, selected);
+      const canSubmit = !variants.length || Boolean(resolved?.id);
+      drawer.innerHTML = `<div class="cart-drawer-handle" aria-hidden="true"></div>
+        <div class="cart-drawer-header"><div><small>${safe(product.category)}</small><h3>${safe(product.name)}</h3></div><button type="button" data-cart-drawer-close aria-label="${safe(this.labels.closeOptions)}">×</button></div>
+        ${sizes.length ? `<fieldset><legend>${safe(this.labels.size)}</legend><div class="drawer-options">${sizes.map((size) => `<button type="button" data-drawer-option="size" data-option-value="${safe(size)}" aria-pressed="${size === selected.size}">${safe(size)}</button>`).join("")}</div></fieldset>` : ""}
+        ${colors.length ? `<fieldset><legend>${safe(this.labels.color)}</legend><div class="drawer-options drawer-colors">${colors.map((color) => `<button type="button" data-drawer-option="color" data-option-value="${safe(color)}" aria-pressed="${color === selected.color}"><i style="--swatch:${colorSwatch(color)}"></i>${safe(color)}</button>`).join("")}</div></fieldset>` : ""}
+        ${this.config.showQuantity ? `<label class="drawer-quantity"><span>${safe(this.labels.quantity)}</span><select data-drawer-quantity><option${selected.quantity === 1 ? " selected" : ""}>1</option><option${selected.quantity === 2 ? " selected" : ""}>2</option><option${selected.quantity === 3 ? " selected" : ""}>3</option></select></label>` : ""}
+        <button type="button" class="drawer-add" data-add="${safe(product.id)}"${canSubmit ? "" : " disabled"}>${safe(canSubmit ? this.labels.add : this.labels.chooseSize)}</button>`;
+      drawer.hidden = false;
+      backdrop.hidden = false;
+      this.bindCartDrawer();
+      requestAnimationFrame(() => drawer.querySelector("[data-cart-drawer-close]")?.focus());
+    }
+
+    bindCartDrawer() {
+      const drawer = this.root.querySelector(".cart-drawer");
+      if (!drawer || drawer.hidden) return;
+      const close = drawer.querySelector("[data-cart-drawer-close]");
+      if (close) close.onclick = () => this.closeCartDrawer();
+      drawer.querySelectorAll("[data-drawer-option]").forEach((button) => {
+        button.onclick = () => {
+          const product = this.findProduct(this.cartDrawerProductId);
+          if (!product) return;
+          this.selectedVariants ||= {};
+          this.selectedVariants[product.id] ||= {};
+          this.selectedVariants[product.id][button.dataset.drawerOption] = button.dataset.optionValue;
+          this.renderCartDrawer();
+        };
+      });
+      const quantity = drawer.querySelector("[data-drawer-quantity]");
+      if (quantity) quantity.onchange = () => {
+        const selected = this.selectedVariants?.[this.cartDrawerProductId];
+        if (selected) selected.quantity = Number(quantity.value) || 1;
+      };
+      const add = drawer.querySelector("[data-add]");
+      if (add) add.onclick = () => {
+        const product = this.findProduct(add.dataset.add);
+        if (product) this.requestCartAdd(product, add);
+      };
+    }
+
+    requestCartAdd(product, button) {
+      if (!product || product.canAdd === false || product.inStock === false || button.disabled) return;
+      const selected = this.selectedVariants?.[product.id] || {};
+      const variant = this.resolvedVariant(product, selected);
+      button.disabled = true;
+      button.dataset.idleLabel = button.textContent || this.labels.add;
+      button.textContent = this.labels.adding;
+      this.emit("promptrails:cart-add", {
+        productId: product.id,
+        variantId: variant?.id || (!product.variants?.length ? product.variantId : undefined),
+        slug: product.slug,
+        size: selected.size || product.selectedSize || product.sizes?.[0],
+        color: selected.color || product.selectedColor || product.colors?.[0],
+        quantity: Number(selected.quantity) || 1,
+      });
+      window.clearTimeout(this.cartTimers.get(product.id));
+      this.cartTimers.set(product.id, window.setTimeout(() => {
+        this.cartFailed({ detail: { productId: product.id } });
+        this.emit("promptrails:error", { code: "cart_confirmation_timeout", productId: product.id });
+      }, 10_000));
     }
 
     toggle(next) {
+      if (!next && this.cartDrawerProductId) this.closeCartDrawer({ restoreFocus: false });
       this.opened = next;
       this.setPageScrollLocked(next);
       this.root.querySelector(".panel")?.classList.toggle("is-open", next);
@@ -628,6 +812,7 @@ import { normalizeChatUI } from "../ui/protocol";
     destroy() { this.remove(); }
 
     handleWindowKey(event) {
+      if (event.key === "Escape" && this.cartDrawerProductId) { event.preventDefault(); this.closeCartDrawer(); return; }
       if (event.key === "Escape" && this.opened) { event.preventDefault(); this.toggle(false); return; }
       if (!this.opened || event.key !== "Tab") return;
       const focusable = [...this.root.querySelectorAll('button:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')];
@@ -825,7 +1010,7 @@ import { normalizeChatUI } from "../ui/protocol";
           ...product,
           reason: plainText(attributes.reason ?? attributes.neden ?? "Size uygun bir seçenek."),
           canView: !genericUI || Boolean(viewAction),
-          canAdd: !genericUI || Boolean(addAction),
+          canAdd: (!genericUI || Boolean(addAction)) && product.inStock !== false,
           viewLabel: this.labels.view,
           addLabel: this.labels.add,
         } : null;
@@ -972,20 +1157,21 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!products.length) return "";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
       const summary = this.config.productCardMode === "summary";
-      const cards = `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation" part="card product-card">
+      const cards = `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation${summary ? " is-summary" : ""}" part="card product-card">
         ${product.canView === false
           ? `<div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>`
           : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`}
-        <div><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3><div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
+        ${summary && product.canAdd !== false && product.inStock !== false ? `<button type="button" class="product-add-trigger" data-cart-drawer-open="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.addLabel || this.labels.add}`)}">＋</button>` : ""}
+        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3><div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
         ${!summary && (product.sizes?.length || product.colors?.length) ? `<div class="variants">
           ${product.sizes?.length === 1 ? `<label><span>${safe(this.labels.size)}</span><output class="variant-locked">${safe(product.sizes[0])}</output></label>` : product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option value="${safe(size)}"${size === product.selectedSize ? " selected" : ""}>${safe(size)}</option>`).join("")}</select></label>` : ""}
           ${product.colors?.length === 1 ? `<label><span>${safe(this.labels.color)}</span><output class="variant-locked">${safe(product.colors[0])}</output></label>` : product.colors?.length ? this.config.colorPicker === "swatches" ? `<label class="color-picker"><span>${safe(this.labels.color)} · <output class="swatch-value">${safe(product.selectedColor || product.colors[0])}</output></span><span class="color-swatches" role="group" aria-label="${safe(this.labels.color)}">${product.colors.map((color) => `<button type="button" data-color-value="${safe(color)}" data-product-id="${safe(product.id)}" aria-label="${safe(color)}" aria-pressed="${color === (product.selectedColor || product.colors[0])}" style="--swatch:${colorSwatch(color)}"></button>`).join("")}</span></label>` : `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option value="${safe(color)}"${color === product.selectedColor ? " selected" : ""}>${safe(color)}</option>`).join("")}</select></label>` : ""}
           ${this.config.showQuantity ? `<label><span>${safe(this.labels.quantity)}</span><select data-variant="quantity" data-product-id="${safe(product.id)}"><option>1</option><option>2</option><option>3</option></select></label>` : ""}
         </div>` : ""}
-        <div class="recommendation-actions${summary ? " is-summary" : ""}">
+        ${summary ? "" : `<div class="recommendation-actions">
           ${product.canView === false ? "" : `<button type="button" class="view" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.viewLabel || this.labels.view)}</button>`}
-          ${summary || product.canAdd === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || this.labels.add)}</button>`}
-        </div>
+          ${product.canAdd === false || product.inStock === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || this.labels.add)}</button>`}
+        </div>`}
       </article>`).join("")}</div>`;
       if (!summary || products.length < 2) return cards;
       return `<div class="recommendations-carousel">${cards}<div class="recommendation-nav" role="group" aria-label="${safe(this.labels.products)}"><button type="button" data-carousel-step="-1" aria-label="${safe(this.labels.previousProducts)}">←</button><button type="button" data-carousel-step="1" aria-label="${safe(this.labels.nextProducts)}">→</button></div></div>`;
@@ -1058,6 +1244,7 @@ import { normalizeChatUI } from "../ui/protocol";
         .message.assistant > div > p { font-size: 12px; }
         .recommendations-list { gap: 8px; }
         .recommendation {
+          position: relative;
           grid-template-columns: 74px minmax(0, 1fr);
           gap: 8px 10px;
           padding: 9px;
@@ -1066,10 +1253,18 @@ import { normalizeChatUI } from "../ui/protocol";
           width: 74px;
           height: 96px;
         }
-        .recommendation h3 { margin-top: 2px; font-size: 15px; }
+        .recommendation h3 { margin-top: 2px; font-size: 13px; line-height: 1.22; }
+        .recommendation h3 .product-title {
+          display: -webkit-box;
+          overflow: hidden;
+          min-height: calc(2 * 1.22em);
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          line-clamp: 2;
+        }
         .price { display: flex; align-items: baseline; gap: 7px; }
         .price del { color: var(--pt-chat-muted, #68655f); font-size: 9px; }
-        .recommendation div:nth-child(2) > p {
+        .recommendation-copy > p {
           display: -webkit-box;
           overflow: hidden;
           margin-top: 5px;
@@ -1087,7 +1282,6 @@ import { normalizeChatUI } from "../ui/protocol";
           grid-column: auto;
           min-height: 31px;
         }
-        .recommendation-actions.is-summary { grid-template-columns: 1fr; }
         .recommendations-list.is-summary {
           display: flex;
           align-items: stretch;
@@ -1101,10 +1295,26 @@ import { normalizeChatUI } from "../ui/protocol";
         .recommendations-list.is-summary::-webkit-scrollbar { display: none; }
         .recommendations-list.is-summary .recommendation {
           flex: 0 0 min(72%, 250px);
-          grid-template-rows: 1fr auto;
           scroll-snap-align: start;
         }
-        .recommendations-list.is-summary .recommendation-actions { align-self: end; }
+        .recommendations-list.is-summary .recommendation-copy > p { display: none; }
+        .product-add-trigger {
+          position: absolute;
+          top: 78px;
+          left: 56px;
+          z-index: 1;
+          display: grid;
+          width: 26px;
+          height: 26px;
+          place-items: center;
+          border: 0;
+          background: var(--pt-chat-surface, #fff);
+          color: var(--pt-chat-text, #171715);
+          box-shadow: 0 1px 5px rgba(0, 0, 0, .12);
+          font: 300 19px/1 inherit;
+          cursor: pointer;
+        }
+        .product-add-trigger:focus-visible { outline: 1px solid var(--pt-accent); outline-offset: 1px; }
         .recommendation-nav {
           display: flex;
           justify-content: flex-end;
@@ -1166,13 +1376,43 @@ import { normalizeChatUI } from "../ui/protocol";
         .composer:focus-within { border-color: var(--pt-accent); }
         .composer textarea:focus-visible { outline: none; }
         .composer textarea { min-height: 47px; padding-block: 14px; }
+        .cart-drawer-backdrop { position: absolute; inset: 0; z-index: 6; border: 0; background: rgba(17, 17, 15, .38); cursor: default; }
+        .cart-drawer {
+          position: absolute;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          z-index: 7;
+          max-height: min(72%, 470px);
+          overflow-y: auto;
+          border-top: 1px solid var(--pt-chat-border, #d7d2c9);
+          background: var(--pt-chat-surface, #fff);
+          padding: 8px 18px 18px;
+          box-shadow: 0 -18px 45px rgba(0, 0, 0, .16);
+        }
+        .cart-drawer-handle { width: 42px; height: 3px; margin: 0 auto 12px; background: var(--pt-chat-border, #d7d2c9); }
+        .cart-drawer-header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+        .cart-drawer-header small { color: var(--pt-chat-muted, #68655f); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
+        .cart-drawer-header h3 { margin: 3px 0 0; font: 500 14px/1.3 inherit; }
+        .cart-drawer-header > button { flex: 0 0 auto; width: 36px; height: 36px; border: 0; background: transparent; color: inherit; font: 300 28px/1 inherit; cursor: pointer; }
+        .cart-drawer fieldset { min-width: 0; margin: 18px 0 0; padding: 0; border: 0; }
+        .cart-drawer legend, .drawer-quantity > span { margin-bottom: 8px; color: var(--pt-chat-text, #171715); font: 600 10px/1 inherit; letter-spacing: .08em; text-transform: uppercase; }
+        .drawer-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); }
+        .drawer-options button { min-height: 44px; border: 1px solid var(--pt-chat-border, #d7d2c9); border-right: 0; background: #fff; color: inherit; font: 500 11px/1 inherit; cursor: pointer; }
+        .drawer-options button:last-child { border-right: 1px solid var(--pt-chat-border, #d7d2c9); }
+        .drawer-options button[aria-pressed="true"] { background: var(--pt-accent); color: #fff; }
+        .drawer-colors button { display: flex; align-items: center; justify-content: center; gap: 7px; }
+        .drawer-colors i { width: 14px; height: 14px; border: 1px solid #aaa59d; border-radius: 50%; background: var(--swatch); }
+        .drawer-quantity { display: grid; width: 92px; margin-top: 18px; }
+        .drawer-quantity select { height: 42px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: #fff; padding: 0 10px; color: inherit; font: 12px inherit; }
+        .drawer-add { width: 100%; min-height: 46px; margin-top: 18px; border: 1px solid var(--pt-accent); background: var(--pt-accent); color: #fff; font: 600 10px/1 inherit; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+        .drawer-add:disabled { cursor: not-allowed; opacity: .45; }
         .legal-consent { margin: 0 14px 8px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); padding: 11px; }
         .legal-consent p { margin: 0 0 9px; color: var(--pt-chat-muted, #68655f); font-size: 9px; line-height: 1.45; }
         .legal-consent a { color: var(--pt-chat-text, #171715); text-underline-offset: 2px; }
         .legal-consent button { width: 100%; min-height: 34px; border: 1px solid var(--pt-accent); background: var(--pt-accent); color: #fff; cursor: pointer; font: 600 9px/1 inherit; letter-spacing: .08em; text-transform: uppercase; }
-        .legal-inline { margin: -2px 14px 8px; color: var(--pt-chat-muted, #68655f); font-size: 8px; line-height: 1.4; text-align: center; }
-        .legal-inline a { color: var(--pt-chat-text, #171715); text-underline-offset: 2px; }
-        .ai-disclaimer { margin: -1px 14px 7px; color: var(--pt-chat-muted, #68655f); font-size: 8px; line-height: 1.35; text-align: center; }
+        .legal-summary { margin: -2px 14px 8px; color: var(--pt-chat-muted, #68655f); font-size: 8px; line-height: 1.4; text-align: center; }
+        .legal-summary a { color: var(--pt-chat-text, #171715); text-underline-offset: 2px; }
         .feedback { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 7px; color: #77736c; font-size: 9px; }
         .feedback button { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; border: 1px solid #d7d2c9; border-radius: 50%; background: #fff; color: #77736c; cursor: pointer; }
         .feedback button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
@@ -1209,7 +1449,15 @@ import { normalizeChatUI } from "../ui/protocol";
           }
           .composer textarea { min-height: 56px; max-height: 112px; padding: 17px 14px; }
           .composer button { width: 44px; height: 44px; margin: 0 5px 6px 0; }
-          .legal-inline, .ai-disclaimer { margin-inline: 16px; font-size: 10px; }
+          .cart-drawer { position: fixed; max-height: 66%; padding: 6px max(16px, env(safe-area-inset-right)) max(16px, calc(8px + env(safe-area-inset-bottom))) max(16px, env(safe-area-inset-left)); }
+          .cart-drawer-handle { margin-bottom: 8px; }
+          .cart-drawer-header h3 { font-size: 12px; }
+          .cart-drawer fieldset { margin-top: 11px; }
+          .drawer-options button { min-height: 40px; font-size: 11px; }
+          .drawer-quantity { margin-top: 11px; }
+          .drawer-quantity select { height: 38px; }
+          .drawer-add { min-height: 44px; margin-top: 12px; font-size: 10px; }
+          .legal-summary { margin-inline: 16px; font-size: 9px; }
           .panel > footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); font-size: 9px; }
           .composer textarea, .variants select {
             font-size: 16px;
@@ -1219,7 +1467,7 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     styles(accent) {
-      return `:host{--pt-accent:var(--pt-chat-accent,${safe(accent)});position:fixed;right:var(--pt-chat-right,24px);bottom:var(--pt-chat-bottom,24px);z-index:var(--pt-chat-z-index,2147483000);font-family:var(--pt-chat-font-family,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);color:var(--pt-chat-text,#171715);line-height:1.45;contain:style;-webkit-text-size-adjust:100%;text-size-adjust:100%}:host *{box-sizing:border-box;min-width:0}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.launcher{width:230px;min-height:64px;border:0;border-radius:2px;background:var(--pt-accent);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 14px;box-shadow:0 15px 42px rgba(0,0,0,.25);cursor:pointer;text-align:left}.launcher-mark,.avatar,.mini-avatar{display:grid;place-items:center;border:1px solid currentColor;font-family:Georgia,serif}.launcher-mark{width:36px;height:36px;font-size:20px}.launcher span:nth-child(2){display:grid;flex:1}.launcher strong{font:600 12px/1.3 inherit;letter-spacing:.02em}.launcher small{font-size:10px;color:rgba(255,255,255,.65)}.launcher i{font-style:normal;font-size:20px}.panel{position:absolute;right:0;bottom:0;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#f7f5f0;border:1px solid #d7d2c9;box-shadow:0 24px 70px rgba(0,0,0,.27);display:none;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden}.panel.is-open{display:grid}.panel header{background:var(--pt-accent);color:#fff;min-height:72px;padding:13px 17px;display:flex;justify-content:space-between;align-items:center}.panel header>div{display:flex;gap:12px;align-items:center}.avatar{width:38px;height:38px;font-size:20px}.panel header p{display:grid;margin:0}.panel header strong{font-family:Georgia,serif;font-size:16px;font-weight:400}.panel header small{font-size:10px;color:rgba(255,255,255,.68);margin-top:3px}.panel header small i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#87bd8b;margin-right:4px}.close{border:0;background:transparent;color:#fff;font-size:29px;line-height:1;cursor:pointer}.conversation{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:22px 18px 14px;scrollbar-width:thin}.conversation.has-messages{padding-top:8px}.conversation.has-messages .welcome,.conversation.has-messages .quick.initial{display:none}.welcome{text-align:center;border-bottom:1px solid #dfdbd3;padding:4px 15px 20px}.welcome-mark{display:grid;place-items:center;margin:0 auto 11px;border:1px solid #171715;width:40px;height:40px;font:22px Georgia,serif}.welcome h2{font:400 27px/1.1 Georgia,serif;margin:0 0 9px}.welcome p{font-size:12px;color:#65635f;margin:0}.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.quick.initial{justify-content:center;padding:4px 0 15px}.quick button{border:1px solid #cbc6bd;background:#fff;border-radius:20px;padding:8px 11px;font:500 10px inherit;cursor:pointer;color:#3c3b38}.quick button:hover{border-color:#171715}.message{margin:12px 0;overflow-wrap:anywhere}.message>p,.message.assistant>div>p{margin:0;padding:12px 14px;font-size:13px;white-space:pre-line}.message.user{display:flex;justify-content:flex-end}.message.user>p{background:var(--pt-accent);color:#fff;max-width:82%;border-radius:13px 13px 2px 13px}.message.assistant{display:grid;grid-template-columns:25px minmax(0,1fr);gap:8px;align-items:start}.message.assistant>div>p{background:#fff;border:1px solid #e0dcd4;border-radius:2px 13px 13px 13px}.mini-avatar{width:25px;height:25px;font:13px Georgia,serif}.recommendations-list{display:grid;gap:10px;margin-top:10px}.recommendation{background:#fff;border:1px solid #dcd7ce;padding:10px;display:grid;grid-template-columns:86px minmax(0,1fr);gap:9px}.recommendation-image{width:86px;height:112px;background-repeat:no-repeat;background-color:#ddd6cc}.product-image-link{display:block;grid-column:auto;min-height:0;padding:0;border:0;border-radius:0;appearance:none}.recommendation h3{font:400 16px/1.15 Georgia,serif;margin:3px 0}.product-title{display:block;width:100%;min-height:0;border:0;background:transparent;color:inherit;padding:0;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:left;text-transform:none;white-space:normal;overflow-wrap:break-word;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;cursor:pointer}.recommendation small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#77736c}.recommendation strong{font-size:11px}.recommendation div:nth-child(2)>p{font-size:10px;color:#68655f;margin:7px 0 0}.recommendation-actions button{grid-column:auto;min-height:34px;text-transform:uppercase;font:600 9px inherit;letter-spacing:.08em;cursor:pointer}.recommendation .view{background:#fff;border:1px solid #171715}.recommendation .add{background:#171715;color:#fff;border:1px solid #171715}.typing{display:flex;align-items:center;gap:4px;margin:16px 0 10px 33px}.typing span{width:6px;height:6px;border-radius:50%;background:#777;animation:pulse 1.1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}.typing em{font:normal 9px inherit;color:#777;margin-left:5px}.typing[hidden]{display:none}@keyframes pulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.composer{margin:0 14px 10px;border:1px solid #c9c4bb;background:#fff;display:grid;grid-template-columns:minmax(0,1fr) 41px;align-items:end}.composer textarea{width:100%;resize:none;border:0;outline:0;min-height:51px;max-height:90px;padding:16px 12px;background:transparent;font:13px inherit}.composer button{width:34px;height:34px;margin:0 6px 8px 0;border:0;border-radius:50%;background:var(--pt-accent);color:#fff;font-size:19px;cursor:pointer}.panel>footer{text-align:center;padding:0 10px 10px;color:#969188;text-transform:uppercase;font-size:8px;letter-spacing:.13em}.panel>footer span{color:#171715;font-size:11px}@media(max-width:560px){:host{right:12px;bottom:12px}.launcher{width:58px;height:58px;min-height:58px;padding:10px;border-radius:50%}.launcher span:nth-child(2),.launcher i{display:none}.launcher-mark{border:0}.panel{position:fixed!important;inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))!important;width:calc(100vw - 16px)!important;min-width:0!important;max-width:calc(100vw - 16px)!important;height:calc(100dvh - 16px)!important;max-height:calc(100dvh - 16px)!important;border:1px solid #d7d2c9}.conversation{padding-left:14px;padding-right:14px}.composer textarea,.variants select{font-size:16px}}@media(max-height:620px){.panel header{min-height:60px;padding-top:9px;padding-bottom:9px}.conversation{padding-top:10px}.welcome-mark{display:none}.welcome h2{font-size:23px}.welcome{padding-top:0;padding-bottom:12px}.quick.initial{padding-bottom:8px}.composer{margin-bottom:7px}.panel>footer{padding-bottom:7px}}:host{--pt-chat-background:#f7f5f0;--pt-chat-surface:#fff;--pt-chat-border:#d7d2c9;--pt-chat-muted:#68655f;--pt-chat-radius:0px}.panel{background:var(--pt-chat-background);border-color:var(--pt-chat-border);border-radius:var(--pt-chat-radius)}.message.assistant>div>p,.recommendation,.quick button,.composer{background:var(--pt-chat-surface)}.message.assistant>div>p,.recommendation,.quick button,.composer{border-color:var(--pt-chat-border)}.recommendation div:nth-child(2)>p,.welcome p{color:var(--pt-chat-muted)}.recommendation .add{background:var(--pt-chat-text,#171715);border-color:var(--pt-chat-text,#171715);color:var(--pt-chat-surface,#fff)}@media(prefers-reduced-motion:reduce){.typing span{animation:none}}`;
+      return `:host{--pt-accent:var(--pt-chat-accent,${safe(accent)});position:fixed;right:var(--pt-chat-right,24px);bottom:var(--pt-chat-bottom,24px);z-index:var(--pt-chat-z-index,2147483000);font-family:var(--pt-chat-font-family,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);color:var(--pt-chat-text,#171715);line-height:1.45;contain:style;-webkit-text-size-adjust:100%;text-size-adjust:100%}:host *{box-sizing:border-box;min-width:0}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden}.launcher{width:230px;min-height:64px;border:0;border-radius:2px;background:var(--pt-accent);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 14px;box-shadow:0 15px 42px rgba(0,0,0,.25);cursor:pointer;text-align:left}.launcher-mark,.avatar,.mini-avatar{display:grid;place-items:center;border:1px solid currentColor;font-family:Georgia,serif}.launcher-mark{width:36px;height:36px;font-size:20px}.launcher span:nth-child(2){display:grid;flex:1}.launcher strong{font:600 12px/1.3 inherit;letter-spacing:.02em}.launcher small{font-size:10px;color:rgba(255,255,255,.65)}.launcher i{font-style:normal;font-size:20px}.panel{position:absolute;right:0;bottom:0;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100dvh - 48px));max-height:calc(100dvh - 48px);background:#f7f5f0;border:1px solid #d7d2c9;box-shadow:0 24px 70px rgba(0,0,0,.27);display:none;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden}.panel.is-open{display:grid}.panel header{background:var(--pt-accent);color:#fff;min-height:72px;padding:13px 17px;display:flex;justify-content:space-between;align-items:center}.panel header>div{display:flex;gap:12px;align-items:center}.avatar{width:38px;height:38px;font-size:20px}.panel header p{display:grid;margin:0}.panel header strong{font-family:Georgia,serif;font-size:16px;font-weight:400}.panel header small{font-size:10px;color:rgba(255,255,255,.68);margin-top:3px}.panel header small i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#87bd8b;margin-right:4px}.close{border:0;background:transparent;color:#fff;font-size:29px;line-height:1;cursor:pointer}.conversation{min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:22px 18px 14px;scrollbar-width:thin}.conversation.has-messages{padding-top:8px}.conversation.has-messages .welcome,.conversation.has-messages .quick.initial{display:none}.welcome{text-align:center;border-bottom:1px solid #dfdbd3;padding:4px 15px 20px}.welcome-mark{display:grid;place-items:center;margin:0 auto 11px;border:1px solid #171715;width:40px;height:40px;font:22px Georgia,serif}.welcome h2{font:400 27px/1.1 Georgia,serif;margin:0 0 9px}.welcome p{font-size:12px;color:#65635f;margin:0}.quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.quick.initial{justify-content:center;padding:4px 0 15px}.quick button{border:1px solid #cbc6bd;background:#fff;border-radius:20px;padding:8px 11px;font:500 10px inherit;cursor:pointer;color:#3c3b38}.quick button:hover{border-color:#171715}.message{margin:12px 0;overflow-wrap:anywhere}.message>p,.message.assistant>div>p{margin:0;padding:12px 14px;font-size:13px;white-space:pre-line}.message.user{display:flex;justify-content:flex-end}.message.user>p{background:var(--pt-accent);color:#fff;max-width:82%;border-radius:13px 13px 2px 13px}.message.assistant{display:grid;grid-template-columns:25px minmax(0,1fr);gap:8px;align-items:start}.message.assistant>div>p{background:#fff;border:1px solid #e0dcd4;border-radius:2px 13px 13px 13px}.mini-avatar{width:25px;height:25px;font:13px Georgia,serif}.recommendations-list{display:grid;gap:10px;margin-top:10px}.recommendation{background:#fff;border:1px solid #dcd7ce;padding:10px;display:grid;grid-template-columns:86px minmax(0,1fr);gap:9px}.recommendation-image{width:86px;height:112px;background-repeat:no-repeat;background-color:#ddd6cc}.product-image-link{display:block;grid-column:auto;min-height:0;padding:0;border:0;border-radius:0;appearance:none}.recommendation h3{font:400 16px/1.15 Georgia,serif;margin:3px 0}.product-title{display:block;width:100%;min-height:0;border:0;background:transparent;color:inherit;padding:0;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:left;text-transform:none;white-space:normal;overflow-wrap:break-word;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;cursor:pointer}.recommendation small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;color:#77736c}.recommendation strong{font-size:11px}.recommendation-copy>p{font-size:10px;color:#68655f;margin:7px 0 0}.recommendation-actions button{grid-column:auto;min-height:34px;text-transform:uppercase;font:600 9px inherit;letter-spacing:.08em;cursor:pointer}.recommendation .view{background:#fff;border:1px solid #171715}.recommendation .add{background:#171715;color:#fff;border:1px solid #171715}.typing{display:flex;align-items:center;gap:4px;margin:16px 0 10px 33px}.typing span{width:6px;height:6px;border-radius:50%;background:#777;animation:pulse 1.1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}.typing em{font:normal 9px inherit;color:#777;margin-left:5px}.typing[hidden]{display:none}@keyframes pulse{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.composer{margin:0 14px 10px;border:1px solid #c9c4bb;background:#fff;display:grid;grid-template-columns:minmax(0,1fr) 41px;align-items:end}.composer textarea{width:100%;resize:none;border:0;outline:0;min-height:51px;max-height:90px;padding:16px 12px;background:transparent;font:13px inherit}.composer button{width:34px;height:34px;margin:0 6px 8px 0;border:0;border-radius:50%;background:var(--pt-accent);color:#fff;font-size:19px;cursor:pointer}.panel>footer{text-align:center;padding:0 10px 10px;color:#969188;text-transform:uppercase;font-size:8px;letter-spacing:.13em}.panel>footer span{color:#171715;font-size:11px}@media(max-width:560px){:host{right:12px;bottom:12px}.launcher{width:58px;height:58px;min-height:58px;padding:10px;border-radius:50%}.launcher span:nth-child(2),.launcher i{display:none}.launcher-mark{border:0}.panel{position:fixed!important;inset:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))!important;width:calc(100vw - 16px)!important;min-width:0!important;max-width:calc(100vw - 16px)!important;height:calc(100dvh - 16px)!important;max-height:calc(100dvh - 16px)!important;border:1px solid #d7d2c9}.conversation{padding-left:14px;padding-right:14px}.composer textarea,.variants select{font-size:16px}}@media(max-height:620px){.panel header{min-height:60px;padding-top:9px;padding-bottom:9px}.conversation{padding-top:10px}.welcome-mark{display:none}.welcome h2{font-size:23px}.welcome{padding-top:0;padding-bottom:12px}.quick.initial{padding-bottom:8px}.composer{margin-bottom:7px}.panel>footer{padding-bottom:7px}}:host{--pt-chat-background:#f7f5f0;--pt-chat-surface:#fff;--pt-chat-border:#d7d2c9;--pt-chat-muted:#68655f;--pt-chat-radius:0px}.panel{background:var(--pt-chat-background);border-color:var(--pt-chat-border);border-radius:var(--pt-chat-radius)}.message.assistant>div>p,.recommendation,.quick button,.composer{background:var(--pt-chat-surface)}.message.assistant>div>p,.recommendation,.quick button,.composer{border-color:var(--pt-chat-border)}.recommendation-copy>p,.welcome p{color:var(--pt-chat-muted)}.recommendation .add{background:var(--pt-chat-text,#171715);border-color:var(--pt-chat-text,#171715);color:var(--pt-chat-surface,#fff)}@media(prefers-reduced-motion:reduce){.typing span{animation:none}}`;
     }
   }
 

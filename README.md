@@ -106,7 +106,7 @@ React and talks directly to PromptRails' public browser chat runtime:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.2/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.5/dist/ecommerce.global.js"
   defer
 ></script>
 
