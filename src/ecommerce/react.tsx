@@ -13,12 +13,15 @@ export interface ShopAssistantProps {
   agentId?: string;
   catalogUrl?: string;
   productSource?: "catalog" | "response";
+  productCardMode?: "commerce" | "summary";
   brand?: string;
   assistantName?: string;
   assistantMark?: string;
   launcherTitle?: string;
   launcherSubtitle?: string;
   launcherIcon?: "arrow" | "message";
+  showLauncherMark?: boolean;
+  showLauncherSubtitle?: boolean;
   greeting?: string;
   greetingMode?: "welcome" | "message";
   placeholder?: string;
@@ -55,12 +58,15 @@ const attributes = [
   ["agentId", "agent-id"],
   ["catalogUrl", "catalog-url"],
   ["productSource", "product-source"],
+  ["productCardMode", "product-card-mode"],
   ["brand", "brand"],
   ["assistantName", "assistant-name"],
   ["assistantMark", "assistant-mark"],
   ["launcherTitle", "launcher-title"],
   ["launcherSubtitle", "launcher-subtitle"],
   ["launcherIcon", "launcher-icon"],
+  ["showLauncherMark", "show-launcher-mark"],
+  ["showLauncherSubtitle", "show-launcher-subtitle"],
   ["greeting", "greeting"],
   ["greetingMode", "greeting-mode"],
   ["placeholder", "placeholder"],

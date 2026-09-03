@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 const limits = {
   "dist/widget.global.js": 190 * 1024,
   // Consent modes, safe CTAs, product controls, and commerce card UX live in this dependency-free bundle.
-  "dist/ecommerce.global.js": 64 * 1024,
+  "dist/ecommerce.global.js": 65 * 1024,
   "dist/styles.css": 40 * 1024,
 };
 

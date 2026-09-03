@@ -11,7 +11,7 @@ Pin a release in production:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.1/dist/ecommerce.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.9.2/dist/ecommerce.global.js"
   defer
 ></script>
 
@@ -74,6 +74,8 @@ not write consent state to localStorage or cookies.
 Use `greeting-mode="message"` when the greeting should share the assistant
 message-bubble language rather than the centered welcome hero. Set
 `launcher-icon="message"` for the built-in outline chat icon.
+Set `show-launcher-mark="false"` or `show-launcher-subtitle="false"` for a
+minimal text-and-icon launcher without brand initials or secondary copy.
 
 ## Browser security boundary
 
@@ -171,6 +173,11 @@ not need a quantity control inside recommendation cards. Set
 of a select. Swatches use a bounded built-in palette and keep the verified
 color label visible; unknown labels receive a neutral fallback rather than
 model-provided CSS.
+
+Set `product-card-mode="summary"` when chat should only present the verified
+image, name, price, reason, and inspect action. Summary mode intentionally
+hides variant controls and add-to-cart while keeping the product image and
+title navigable. The default `commerce` mode remains unchanged.
 
 For direct storefront cart integrations, include the verified tool-provided
 `selected_variant_id`. The sanitized value is emitted as `variantId` on

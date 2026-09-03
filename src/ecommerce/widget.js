@@ -213,7 +213,7 @@ import { normalizeChatUI } from "../ui/protocol";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "launcher-icon", "greeting", "greeting-mode", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "show-quantity", "color-picker", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-required", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "product-card-mode", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "launcher-icon", "show-launcher-mark", "show-launcher-subtitle", "greeting", "greeting-mode", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "show-quantity", "color-picker", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-required", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
     }
 
     constructor() {
@@ -295,12 +295,15 @@ import { normalizeChatUI } from "../ui/protocol";
         apiKey: this.getAttribute("api-key")?.trim() ?? "",
         catalogUrl: this.getAttribute("catalog-url")?.trim() || "/api/katalog",
         productSource: this.getAttribute("product-source") === "response" ? "response" : "catalog",
+        productCardMode: this.getAttribute("product-card-mode") === "summary" ? "summary" : "commerce",
         brand,
         assistantName: this.getAttribute("assistant-name")?.trim() || `${brand} Stil Danışmanı`,
         assistantMark: plainText(this.getAttribute("assistant-mark") || brand).slice(0, 2).toLocaleUpperCase("tr-TR") || "AI",
         launcherTitle: this.getAttribute("launcher-title")?.trim() || "Stil danışmanı",
         launcherSubtitle: this.getAttribute("launcher-subtitle")?.trim() || "Size özel öneriler",
         launcherIcon: this.getAttribute("launcher-icon") === "message" ? "message" : "arrow",
+        showLauncherMark: this.getAttribute("show-launcher-mark") !== "false",
+        showLauncherSubtitle: this.getAttribute("show-launcher-subtitle") !== "false",
         greeting: this.getAttribute("greeting")?.trim() || "Merhaba, size nasıl yardımcı olabilirim?",
         greetingMode: this.getAttribute("greeting-mode") === "message" ? "message" : "welcome",
         placeholder: this.getAttribute("placeholder")?.trim() || "Nasıl bir parça arıyorsunuz?",
@@ -428,7 +431,7 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     renderShell() {
-      const { assistantName, assistantMark, launcherTitle, launcherSubtitle, launcherIcon, greeting, greetingMode, placeholder, quickPrompts, accent, stylesheetUrl: customStylesheet, styleNonce, legalNotice, legalUrl, legalLinkLabel, legalAcceptLabel, aiDisclaimer } = this.config;
+      const { assistantName, assistantMark, launcherTitle, launcherSubtitle, launcherIcon, showLauncherMark, showLauncherSubtitle, greeting, greetingMode, placeholder, quickPrompts, accent, stylesheetUrl: customStylesheet, styleNonce, legalNotice, legalUrl, legalLinkLabel, legalAcceptLabel, aiDisclaimer } = this.config;
       const labels = this.labels;
       const consented = this.hasLegalConsent();
       const legalLink = legalUrl ? `<a href="${safe(legalUrl)}" target="_blank" rel="noopener noreferrer">${safe(legalLinkLabel || labels.privacyPolicy)}</a>` : "";
@@ -439,7 +442,7 @@ import { normalizeChatUI } from "../ui/protocol";
         : "";
       this.root.innerHTML = `<style${styleNonce ? ` nonce="${safe(styleNonce)}"` : ""}>${this.styles(accent)}${this.compactStyles()}</style>${customStylesheet ? `<link rel="stylesheet" href="${safe(customStylesheet)}">` : ""}
         <button class="launcher" part="launcher" type="button" aria-label="${safe(labels.open)}" aria-expanded="${this.opened}" aria-controls="pt-shop-panel" ${this.opened ? "hidden" : ""}>
-          <span class="launcher-mark">${safe(assistantMark)}</span><span><strong>${safe(launcherTitle)}</strong><small>${safe(launcherSubtitle)}</small></span><i aria-hidden="true">${launcherIcon === "message" ? CHAT_ICON : "↗"}</i>
+          ${showLauncherMark ? `<span class="launcher-mark">${safe(assistantMark)}</span>` : ""}<span><strong>${safe(launcherTitle)}</strong>${showLauncherSubtitle ? `<small>${safe(launcherSubtitle)}</small>` : ""}</span><i aria-hidden="true">${launcherIcon === "message" ? CHAT_ICON : "↗"}</i>
         </button>
         <section id="pt-shop-panel" class="panel ${this.opened ? "is-open" : ""}" part="panel" role="dialog" aria-modal="false" aria-label="${safe(assistantName)}" aria-hidden="${!this.opened}">
           <header part="header"><div><span class="avatar">${safe(assistantMark)}</span><p><strong>${safe(assistantName)}</strong><small><i></i> ${safe(labels.online)}</small></p></div><div class="panel-actions"><button class="new-chat" type="button" aria-label="${safe(labels.newChat)}" title="${safe(labels.newChat)}">＋</button><button class="close" type="button" aria-label="${safe(labels.close)}">×</button></div></header>
@@ -942,19 +945,20 @@ import { normalizeChatUI } from "../ui/protocol";
     productMarkup(products = []) {
       if (!products.length) return "";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
+      const summary = this.config.productCardMode === "summary";
       return `<div class="recommendations-list">${products.map((product) => `<article class="recommendation" part="card product-card">
         ${product.canView === false
           ? `<div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>`
           : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`}
         <div><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3><div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
-        ${(product.sizes?.length || product.colors?.length) ? `<div class="variants">
+        ${!summary && (product.sizes?.length || product.colors?.length) ? `<div class="variants">
           ${product.sizes?.length === 1 ? `<label><span>${safe(this.labels.size)}</span><output class="variant-locked">${safe(product.sizes[0])}</output></label>` : product.sizes?.length ? `<label><span>${safe(this.labels.size)}</span><select data-variant="size" data-product-id="${safe(product.id)}">${product.sizes.map((size) => `<option value="${safe(size)}"${size === product.selectedSize ? " selected" : ""}>${safe(size)}</option>`).join("")}</select></label>` : ""}
           ${product.colors?.length === 1 ? `<label><span>${safe(this.labels.color)}</span><output class="variant-locked">${safe(product.colors[0])}</output></label>` : product.colors?.length ? this.config.colorPicker === "swatches" ? `<label class="color-picker"><span>${safe(this.labels.color)} · <output class="swatch-value">${safe(product.selectedColor || product.colors[0])}</output></span><span class="color-swatches" role="group" aria-label="${safe(this.labels.color)}">${product.colors.map((color) => `<button type="button" data-color-value="${safe(color)}" data-product-id="${safe(product.id)}" aria-label="${safe(color)}" aria-pressed="${color === (product.selectedColor || product.colors[0])}" style="--swatch:${colorSwatch(color)}"></button>`).join("")}</span></label>` : `<label><span>${safe(this.labels.color)}</span><select data-variant="color" data-product-id="${safe(product.id)}">${product.colors.map((color) => `<option value="${safe(color)}"${color === product.selectedColor ? " selected" : ""}>${safe(color)}</option>`).join("")}</select></label>` : ""}
           ${this.config.showQuantity ? `<label><span>${safe(this.labels.quantity)}</span><select data-variant="quantity" data-product-id="${safe(product.id)}"><option>1</option><option>2</option><option>3</option></select></label>` : ""}
         </div>` : ""}
-        <div class="recommendation-actions">
+        <div class="recommendation-actions${summary ? " is-summary" : ""}">
           ${product.canView === false ? "" : `<button type="button" class="view" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.viewLabel || this.labels.view)}</button>`}
-          ${product.canAdd === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || this.labels.add)}</button>`}
+          ${summary || product.canAdd === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || this.labels.add)}</button>`}
         </div>
       </article>`).join("")}</div>`;
     }
@@ -1055,6 +1059,7 @@ import { normalizeChatUI } from "../ui/protocol";
           grid-column: auto;
           min-height: 31px;
         }
+        .recommendation-actions.is-summary { grid-template-columns: 1fr; }
         .message-actions { display: grid; gap: 7px; margin-top: 8px; }
         .message-actions a {
           min-height: 38px;

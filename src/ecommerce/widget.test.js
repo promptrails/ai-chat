@@ -90,6 +90,37 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".launcher i svg")).not.toBeNull();
   });
 
+  it("can render a minimal launcher without a mark or subtitle", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("launcher-title", "SUUD ASİSTAN");
+    widget.setAttribute("launcher-icon", "message");
+    widget.setAttribute("show-launcher-mark", "false");
+    widget.setAttribute("show-launcher-subtitle", "false");
+    document.body.appendChild(widget);
+
+    expect(widget.shadowRoot?.querySelector(".launcher strong")?.textContent).toBe("SUUD ASİSTAN");
+    expect(widget.shadowRoot?.querySelector(".launcher-mark")).toBeNull();
+    expect(widget.shadowRoot?.querySelector(".launcher small")).toBeNull();
+    expect(widget.shadowRoot?.querySelector(".launcher i svg")).not.toBeNull();
+  });
+
+  it("renders summary product cards without variants or add-to-cart", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-card-mode", "summary");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Öneri",
+      products: [{ id: "product-1", slug: "elbise", name: "Elbise", price: 100, sizes: ["36", "38"], colors: ["Siyah"] }],
+    }];
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelector(".variants")).toBeNull();
+    expect(widget.shadowRoot?.querySelector("[data-add]")).toBeNull();
+    expect(widget.shadowRoot?.querySelector("[data-view]")).not.toBeNull();
+    expect(widget.shadowRoot?.querySelector(".recommendation-actions")?.classList.contains("is-summary")).toBe(true);
+  });
+
   it("locks background scrolling and avoids opening the keyboard on mobile", async () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
     const widget = document.createElement("promptrails-shop-assistant");
