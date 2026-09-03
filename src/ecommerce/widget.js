@@ -1157,7 +1157,7 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!products.length) return "";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
       const summary = this.config.productCardMode === "summary";
-      const cards = `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation${summary ? " is-summary" : ""}" part="card product-card">
+      const cards = `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation${summary ? " is-summary" : ""}${plainText(product.name).length > 28 ? " has-long-title" : ""}" part="card product-card">
         ${product.canView === false
           ? `<div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>`
           : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`}

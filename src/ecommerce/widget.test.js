@@ -129,6 +129,20 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".cart-drawer [data-add]")).not.toBeNull();
   });
 
+  it("marks long product titles for responsive storefront typography", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-card-mode", "summary");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Öneri",
+      products: [{ id: "product-1", name: "Siyah Amora Kontrast Detaylı Uzun Elbise", price: 100 }],
+    }];
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelector(".recommendation")?.classList.contains("has-long-title")).toBe(true);
+  });
+
   it("selects an in-stock variant in the product drawer before emitting cart-add", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-card-mode", "summary");
