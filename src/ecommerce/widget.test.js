@@ -122,6 +122,27 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".recommendation-actions")?.classList.contains("is-summary")).toBe(true);
   });
 
+  it("adds accessible carousel controls when more than one summary product is shown", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-card-mode", "summary");
+    document.body.appendChild(widget);
+    widget.messages = [{
+      role: "assistant",
+      text: "Öneriler",
+      products: [
+        { id: "product-1", slug: "elbise", name: "Elbise", price: 100 },
+        { id: "product-2", slug: "ceket", name: "Ceket", price: 200 },
+      ],
+    }];
+    widget.paintMessages();
+
+    const controls = widget.shadowRoot?.querySelectorAll("[data-carousel-step]");
+    expect(widget.shadowRoot?.querySelector(".recommendations-carousel")).not.toBeNull();
+    expect(controls).toHaveLength(2);
+    expect(controls?.[0].getAttribute("aria-label")).toBe("Önceki ürünler");
+    expect(controls?.[1].getAttribute("aria-label")).toBe("Sonraki ürünler");
+  });
+
   it("locks background scrolling and avoids opening the keyboard on mobile", async () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
     const widget = document.createElement("promptrails-shop-assistant");

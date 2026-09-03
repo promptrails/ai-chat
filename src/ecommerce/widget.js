@@ -345,6 +345,7 @@ import { normalizeChatUI } from "../ui/protocol";
         offline: "You are offline. Check your connection.", retry: "Try again",
         toolWorking: "Checking the relevant information…", toolComplete: "Information found. Preparing your answer…",
         openLink: "Open link", whatsapp: "Message on WhatsApp", accept: "Accept", privacyPolicy: "Privacy policy",
+        products: "Products", previousProducts: "Previous products", nextProducts: "Next products",
       };
       const turkish = {
         open: "Sohbeti aç", close: "Sohbeti küçült", newChat: "Yeni sohbet başlat", online: "Çevrimiçi",
@@ -356,6 +357,7 @@ import { normalizeChatUI } from "../ui/protocol";
         offline: "Çevrimdışısınız. Bağlantınızı kontrol edin.", retry: "Tekrar deneyelim",
         toolWorking: "İlgili bilgileri kontrol ediyorum…", toolComplete: "Bilgileri buldum, yanıtınızı hazırlıyorum…",
         openLink: "Bağlantıyı aç", whatsapp: "WhatsApp'tan yaz", accept: "Kabul et", privacyPolicy: "Gizlilik politikası",
+        products: "Ürünler", previousProducts: "Önceki ürünler", nextProducts: "Sonraki ürünler",
       };
       let custom = {};
       try { custom = JSON.parse(this.getAttribute("translations") || "{}"); } catch { /* invalid overrides are ignored */ }
@@ -496,6 +498,30 @@ import { normalizeChatUI } from "../ui/protocol";
       };
       this.root.querySelectorAll(".initial button").forEach((button) => { button.onclick = () => this.send(button.textContent); });
       this.root.querySelectorAll("[data-quick]").forEach((button) => { button.onclick = () => this.send(button.dataset.quick); });
+      this.root.querySelectorAll(".recommendations-carousel").forEach((carousel) => {
+        const track = carousel.querySelector(".recommendations-list");
+        const previous = carousel.querySelector('[data-carousel-step="-1"]');
+        const next = carousel.querySelector('[data-carousel-step="1"]');
+        if (!track || !previous || !next) return;
+        const update = () => {
+          previous.disabled = track.scrollLeft <= 2;
+          next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
+        };
+        const move = (direction) => {
+          const cards = [...track.querySelectorAll(".recommendation")];
+          if (!cards.length) return;
+          const current = cards.reduce((closest, card, index) => (
+            Math.abs(card.offsetLeft - track.scrollLeft) < Math.abs(cards[closest].offsetLeft - track.scrollLeft) ? index : closest
+          ), 0);
+          const target = cards[Math.max(0, Math.min(cards.length - 1, current + direction))];
+          track.scrollTo({ left: target.offsetLeft - cards[0].offsetLeft, behavior: "smooth" });
+          window.setTimeout(update, 350);
+        };
+        previous.onclick = () => move(-1);
+        next.onclick = () => move(1);
+        track.onscroll = update;
+        update();
+      });
       this.root.querySelectorAll("[data-view]").forEach((button) => { button.onclick = () => {
         if (this.config.closeOnProductView) this.toggle(false);
         const product = this.findProduct(button.dataset.productId);
@@ -946,7 +972,7 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!products.length) return "";
       const money = new Intl.NumberFormat(this.config.locale, { style: "currency", currency: this.config.currency, maximumFractionDigits: 0 });
       const summary = this.config.productCardMode === "summary";
-      return `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation" part="card product-card">
+      const cards = `<div class="recommendations-list${summary ? " is-summary" : ""}">${products.map((product) => `<article class="recommendation" part="card product-card">
         ${product.canView === false
           ? `<div class="recommendation-image" role="img" aria-label="${safe(product.name)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></div>`
           : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`}
@@ -961,6 +987,8 @@ import { normalizeChatUI } from "../ui/protocol";
           ${summary || product.canAdd === false ? "" : `<button type="button" class="add" data-add="${safe(product.id)}">${safe(product.addLabel || this.labels.add)}</button>`}
         </div>
       </article>`).join("")}</div>`;
+      if (!summary || products.length < 2) return cards;
+      return `<div class="recommendations-carousel">${cards}<div class="recommendation-nav" role="group" aria-label="${safe(this.labels.products)}"><button type="button" data-carousel-step="-1" aria-label="${safe(this.labels.previousProducts)}">←</button><button type="button" data-carousel-step="1" aria-label="${safe(this.labels.nextProducts)}">→</button></div></div>`;
     }
 
     statusMarkup(cards = []) {
@@ -1062,18 +1090,38 @@ import { normalizeChatUI } from "../ui/protocol";
         .recommendation-actions.is-summary { grid-template-columns: 1fr; }
         .recommendations-list.is-summary {
           display: flex;
+          align-items: stretch;
           gap: 9px;
           overflow-x: auto;
           overscroll-behavior-inline: contain;
           padding: 0 1px 7px;
           scroll-snap-type: inline mandatory;
-          scrollbar-width: thin;
+          scrollbar-width: none;
         }
+        .recommendations-list.is-summary::-webkit-scrollbar { display: none; }
         .recommendations-list.is-summary .recommendation {
           flex: 0 0 min(72%, 250px);
-          align-content: start;
+          grid-template-rows: 1fr auto;
           scroll-snap-align: start;
         }
+        .recommendations-list.is-summary .recommendation-actions { align-self: end; }
+        .recommendation-nav {
+          display: flex;
+          justify-content: flex-end;
+          gap: 6px;
+          margin-top: 6px;
+        }
+        .recommendation-nav button {
+          width: 32px;
+          height: 32px;
+          border: 1px solid var(--pt-chat-border, #d7d2c9);
+          background: var(--pt-chat-surface, #fff);
+          color: var(--pt-chat-text, #171715);
+          font: 400 17px/1 inherit;
+          cursor: pointer;
+        }
+        .recommendation-nav button:disabled { cursor: default; opacity: .28; }
+        .recommendation-nav button:focus-visible { outline: 2px solid var(--pt-accent); outline-offset: 2px; }
         .message-actions { display: grid; gap: 7px; margin-top: 8px; }
         .message-actions a {
           min-height: 38px;
