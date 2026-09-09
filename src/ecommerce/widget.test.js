@@ -505,6 +505,7 @@ describe("PromptRails ecommerce widget", () => {
             selected_variant_id: "variant-m-black",
             selected_size: "M",
             selected_color: "Siyah",
+            in_stock: true,
           },
         }],
         actions: [{
@@ -525,6 +526,10 @@ describe("PromptRails ecommerce widget", () => {
       variantId: "variant-m-black",
     });
 
+    delete response.ui.resources[0].attributes.in_stock;
+    expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
+
+    response.ui.resources[0].attributes.in_stock = true;
     response.ui.resources[0].attributes.selected_variant_id = "";
     expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
   });

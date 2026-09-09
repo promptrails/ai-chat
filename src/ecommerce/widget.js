@@ -182,6 +182,7 @@ import { normalizeChatUI } from "../ui/protocol";
         size: boundedText(variant?.size, 120),
         color: boundedText(variant?.color, 120),
         available: availability(availableValue) ?? stockAvailability ?? true,
+        stockKnown: availableValue !== undefined || stockValue !== undefined,
       };
     });
     const availableVariants = variants.filter((variant) => variant.available);
@@ -225,6 +226,9 @@ import { normalizeChatUI } from "../ui/protocol";
     const inStock = productAvailability !== false
       && (productStock === undefined || Number(productStock) > 0)
       && (!variants.length || availableVariants.length > 0);
+    const stockKnown = productAvailability !== undefined
+      || productStock !== undefined
+      || selectedVariant?.stockKnown === true;
     const compareAtValue = attributes.compare_at_price ?? attributes.compareAtPrice
       ?? attributes.compare_at ?? attributes.compareAt ?? attributes.original_price
       ?? attributes.originalPrice ?? attributes.list_price ?? attributes.listPrice;
@@ -255,6 +259,7 @@ import { normalizeChatUI } from "../ui/protocol";
       selectedVariantIdProvided: Boolean(variantId),
       variants,
       inStock,
+      stockKnown,
     };
   };
 
@@ -1019,7 +1024,8 @@ import { normalizeChatUI } from "../ui/protocol";
         const implicitCartAction = this.config.implicitCartAction
           && Boolean(product?.variantId)
           && product?.selectedVariantIdProvided === true
-          && product?.inStock !== false;
+          && product?.stockKnown === true
+          && product?.inStock === true;
         return product ? {
           ...product,
           reason: plainText(attributes.reason ?? attributes.neden ?? "Size uygun bir seçenek."),

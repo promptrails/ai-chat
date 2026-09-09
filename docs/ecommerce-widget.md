@@ -111,9 +111,10 @@ It expires after 90 days at most; shorten that with `visitor-max-age`. A consent
 withdrawal flow can call `element.clearVisitor()` to remove it immediately.
 
 `implicit-cart-action="true"` is an optional storefront safeguard. When a
-structured product contains a valid selected variant but the agent omits its
-`cart.add` action, the widget can still show the add button. It remains disabled
-by default, and the host cart bridge must revalidate the variant and stock.
+structured product contains a valid selected variant with explicit in-stock
+evidence but the agent omits its `cart.add` action, the widget can still show
+the add button. It remains disabled by default, and the host cart bridge must
+revalidate the variant and stock.
 
 ## Catalog contract
 
