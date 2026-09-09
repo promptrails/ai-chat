@@ -252,13 +252,14 @@ import { normalizeChatUI } from "../ui/protocol";
       selectedSize,
       selectedColor,
       variantId: selectedVariant?.id || (variants.some((variant) => variant.id) ? availableVariants[0]?.id || "" : variantId),
+      selectedVariantIdProvided: Boolean(variantId),
       variants,
       inStock,
     };
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "product-card-mode", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "launcher-icon", "show-launcher-mark", "show-launcher-subtitle", "greeting", "greeting-mode", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "visitor-tracking", "show-tool-activity", "show-activity-duration", "show-quantity", "color-picker", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-required", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "product-card-mode", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "launcher-icon", "show-launcher-mark", "show-launcher-subtitle", "greeting", "greeting-mode", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "visitor-tracking", "visitor-max-age", "implicit-cart-action", "show-tool-activity", "show-activity-duration", "show-quantity", "color-picker", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-required", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
     }
 
     constructor() {
@@ -317,7 +318,7 @@ import { normalizeChatUI } from "../ui/protocol";
 
     attributeChangedCallback(name) {
       if (!this.isConnected) return;
-      if (["api-url", "workspace-id", "agent-id", "api-key", "persist-session", "session-max-age", "visitor-tracking"].includes(name)) {
+      if (["api-url", "workspace-id", "agent-id", "api-key", "persist-session", "session-max-age", "visitor-tracking", "visitor-max-age"].includes(name)) {
         if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
         this.createRuntime();
         this.hydrationPromise = this.hydrateSession();
@@ -364,6 +365,11 @@ import { normalizeChatUI } from "../ui/protocol";
         persistSession: this.getAttribute("persist-session") !== "false",
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
         visitorTracking: this.getAttribute("visitor-tracking") === "true",
+        visitorMaxAgeSeconds: Math.min(
+          Math.max(Number(this.getAttribute("visitor-max-age")) || 90 * 24 * 60 * 60, 1),
+          90 * 24 * 60 * 60,
+        ),
+        implicitCartAction: this.getAttribute("implicit-cart-action") === "true",
         showToolActivity: this.getAttribute("show-tool-activity") !== "false",
         showActivityDuration: this.getAttribute("show-activity-duration") === "true",
         showQuantity: this.getAttribute("show-quantity") !== "false",
@@ -427,6 +433,7 @@ import { normalizeChatUI } from "../ui/protocol";
         persistSession: this.config.persistSession,
         sessionMaxAge: Math.floor(this.config.sessionMaxAgeMs / 1000),
         visitorTracking: this.config.visitorTracking,
+        visitorMaxAge: this.config.visitorMaxAgeSeconds,
         storageKey: `${this.storageKey}:session`,
         onEvent: (event) => this.emit("promptrails:runtime", event),
       });
@@ -810,6 +817,7 @@ import { normalizeChatUI } from "../ui/protocol";
     open() { this.toggle(true); }
     close() { this.toggle(false); }
     newSession() { return this.startNewSession(); }
+    clearVisitor() { this.runtime?.clearVisitor(); }
     updateContext(context = {}) { this.context = { ...this.context, ...context }; }
     destroy() { this.remove(); }
 
@@ -1008,11 +1016,15 @@ import { normalizeChatUI } from "../ui/protocol";
         const resourceActions = actions.filter((action) => String(action.resourceId) === id);
         const viewAction = resourceActions.find((action) => action.kind === "resource.open");
         const addAction = resourceActions.find((action) => action.kind === "cart.add");
+        const implicitCartAction = this.config.implicitCartAction
+          && Boolean(product?.variantId)
+          && product?.selectedVariantIdProvided === true
+          && product?.inStock !== false;
         return product ? {
           ...product,
           reason: plainText(attributes.reason ?? attributes.neden ?? "Size uygun bir seçenek."),
           canView: !genericUI || Boolean(viewAction),
-          canAdd: (!genericUI || Boolean(addAction)) && product.inStock !== false,
+          canAdd: (!genericUI || Boolean(addAction) || implicitCartAction) && product.inStock !== false,
           viewLabel: this.labels.view,
           addLabel: this.labels.add,
         } : null;

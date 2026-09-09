@@ -23,6 +23,7 @@ Pin a release in production:
   data-persist-session="true"
   data-session-max-age="86400"
   data-visitor-tracking="true"
+  data-visitor-max-age="7776000"
   data-new-session-label="Yeni sohbet"
   data-feedback-label="Bu yanıt yardımcı oldu mu?"
 ></script>

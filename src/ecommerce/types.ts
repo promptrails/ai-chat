@@ -45,6 +45,7 @@ export interface PromptRailsShopAssistantElement extends HTMLElement {
   toggle(next: boolean): void;
   send(content: string): Promise<void>;
   newSession(): Promise<void>;
+  clearVisitor(): void;
   updateContext(context: ShopAssistantContext): void;
   destroy(): void;
 }

@@ -236,6 +236,8 @@ export interface WidgetConfig {
   sessionMaxAge?: number;
   /** Persist an anonymous visitor ID for trace grouping. Defaults to false. */
   visitorTracking?: boolean;
+  /** Maximum lifetime of the anonymous visitor ID in seconds. Capped at 90 days. */
+  visitorMaxAge?: number;
   /** Optional stylesheet loaded inside the widget's ShadowRoot. */
   stylesheetUrl?: string;
   newSessionLabel?: string;

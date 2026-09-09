@@ -115,9 +115,34 @@ describe("browser chat runtime", () => {
       visitor_tracking: true,
       visitor_id: VISITOR_ID,
     });
-    expect(localStorage.getItem("promptrails-chat-widget:workspace:agent:visitor")).toBe(
-      VISITOR_ID,
-    );
+    expect(
+      JSON.parse(localStorage.getItem("promptrails-chat-widget:workspace:agent:visitor")!),
+    ).toMatchObject({ visitorId: VISITOR_ID, createdAt: expect.any(Number) });
+  });
+
+  it("expires stored visitor identities and exposes an explicit reset", async () => {
+    const visitorKey = "promptrails-chat-widget:workspace:agent:visitor";
+    localStorage.setItem(visitorKey, JSON.stringify({ visitorId: VISITOR_ID, createdAt: 1 }));
+    fetchMock
+      .mockResolvedValueOnce(json({ data: { access_token: "token", expires_in: 900 } }))
+      .mockResolvedValueOnce(
+        json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN, visitor_id: VISITOR_ID } }),
+      );
+    const runtime = createBrowserChatRuntime({
+      apiKey: "browser",
+      agentId: "agent",
+      workspaceId: "workspace",
+      visitorTracking: true,
+      visitorMaxAge: 60,
+    });
+
+    await runtime.createSession();
+    const request = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(request).not.toHaveProperty("visitor_id");
+    expect(localStorage.getItem(visitorKey)).not.toBeNull();
+
+    runtime.clearVisitor();
+    expect(localStorage.getItem(visitorKey)).toBeNull();
   });
 
   it("does not request visitor tracking by default", async () => {

@@ -31,6 +31,9 @@ export interface ShopAssistantProps {
   persistSession?: boolean;
   sessionMaxAge?: number;
   visitorTracking?: boolean;
+  visitorMaxAge?: number;
+  /** Infer a cart action from a valid response variant when the agent omits it. Defaults to false. */
+  implicitCartAction?: boolean;
   showToolActivity?: boolean;
   showActivityDuration?: boolean;
   showQuantity?: boolean;
@@ -77,6 +80,8 @@ const attributes = [
   ["persistSession", "persist-session"],
   ["sessionMaxAge", "session-max-age"],
   ["visitorTracking", "visitor-tracking"],
+  ["visitorMaxAge", "visitor-max-age"],
+  ["implicitCartAction", "implicit-cart-action"],
   ["showToolActivity", "show-tool-activity"],
   ["showActivityDuration", "show-activity-duration"],
   ["showQuantity", "show-quantity"],

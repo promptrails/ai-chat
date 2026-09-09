@@ -43,6 +43,7 @@ export const Widget = forwardRef<WidgetHandle, WidgetProps>(function Widget({ co
           persistSession: config.persistSession,
           sessionMaxAge: config.sessionMaxAge,
           visitorTracking: config.visitorTracking,
+          visitorMaxAge: config.visitorMaxAge,
         });
 
       case "openai":
