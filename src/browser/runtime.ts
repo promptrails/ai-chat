@@ -3,6 +3,8 @@ import type { Message, StreamEvent } from "../types";
 
 const DEFAULT_SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
 const MAX_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+const DEFAULT_VISITOR_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
+const MAX_VISITOR_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 const TOKEN_REFRESH_SKEW_MS = 30_000;
 
 export type BrowserRuntimeEvent =
@@ -34,6 +36,12 @@ export interface BrowserRuntimeConfig {
   workspaceId?: string;
   title?: string;
   metadata?: Record<string, unknown>;
+  /** Enable anonymous visitor attribution across browser chat sessions. Defaults to false. */
+  visitorTracking?: boolean;
+  /** Optional anonymous end-user ID used only for trace attribution. */
+  visitorId?: string;
+  /** Maximum lifetime of the browser visitor ID in seconds. Defaults to 90 days. */
+  visitorMaxAge?: number;
   persistSession?: boolean;
   sessionMaxAge?: number;
   /** Override the localStorage namespace without changing authorization. */
@@ -56,6 +64,7 @@ export interface BrowserSessionResponse {
   agent_id?: string;
   title?: string;
   resume_token?: string;
+  visitor_id?: string;
   created_at?: string;
 }
 
@@ -100,6 +109,8 @@ export interface BrowserChatRuntime {
     signal?: AbortSignal,
   ): AsyncGenerator<StreamEvent>;
   newSession(): Promise<void>;
+  /** Forget the cross-session visitor identity without affecting the active chat. */
+  clearVisitor(): void;
   submitFeedback(executionId: string, value: 1 | -1): Promise<void>;
   disconnect(): void;
 }
@@ -127,6 +138,10 @@ function sessionIsValid(value: Partial<BrowserSessionSnapshot>, maxAgeMs: number
     age >= 0 &&
     age <= maxAgeMs
   );
+}
+
+function visitorIDIsValid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9A-Za-z]{27}$/.test(value);
 }
 
 function messageFromApi(item: BrowserMessageResponse): Message | null {
@@ -222,15 +237,24 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
     Number.isFinite(requestedMaxAge) && requestedMaxAge > 0
       ? Math.min(Math.floor(requestedMaxAge), MAX_SESSION_MAX_AGE_SECONDS)
       : DEFAULT_SESSION_MAX_AGE_SECONDS;
+  const requestedVisitorMaxAge = Number(config.visitorMaxAge);
+  const visitorMaxAge =
+    Number.isFinite(requestedVisitorMaxAge) && requestedVisitorMaxAge > 0
+      ? Math.min(Math.floor(requestedVisitorMaxAge), MAX_VISITOR_MAX_AGE_SECONDS)
+      : DEFAULT_VISITOR_MAX_AGE_SECONDS;
   const apiUrl = `${cleanBase(config.baseUrl || "https://api.promptrails.ai")}/api/v1`;
   const storageKey =
     config.storageKey ||
     `promptrails-chat-widget:${config.workspaceId || "default"}:${config.agentId}`;
+  const visitorStorageKey = `${storageKey}:visitor`;
   const source = generateId();
   const listeners = new Set<(event: BrowserRuntimeEvent) => void>();
 
   let sessionId = "";
   let resumeToken = "";
+  let visitorId =
+    config.visitorTracking === true && visitorIDIsValid(config.visitorId) ? config.visitorId : "";
+  let visitorCreatedAt = visitorId ? Date.now() : 0;
   let accessToken = "";
   let accessTokenExpiresAt = 0;
   let tokenPromise: Promise<string> | null = null;
@@ -248,6 +272,55 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
       return window.localStorage;
     } catch {
       return null;
+    }
+  }
+
+  function visitorStorage(): Storage | null {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+
+  function restoreVisitor(): void {
+    if (config.visitorTracking !== true || visitorId) return;
+    try {
+      const raw = visitorStorage()?.getItem(visitorStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { visitorId?: string; createdAt?: number };
+      const age = Date.now() - Number(saved.createdAt);
+      if (
+        visitorIDIsValid(saved.visitorId) &&
+        Number.isFinite(age) &&
+        age >= 0 &&
+        age <= visitorMaxAge * 1000
+      ) {
+        visitorId = saved.visitorId;
+        visitorCreatedAt = Number(saved.createdAt);
+      } else {
+        visitorStorage()?.removeItem(visitorStorageKey);
+      }
+    } catch {
+      try {
+        visitorStorage()?.removeItem(visitorStorageKey);
+      } catch {
+        // Persistence is optional.
+      }
+    }
+  }
+
+  function persistVisitor(): void {
+    if (config.visitorTracking !== true || !visitorId) return;
+    try {
+      if (!visitorCreatedAt) visitorCreatedAt = Date.now();
+      visitorStorage()?.setItem(
+        visitorStorageKey,
+        JSON.stringify({ visitorId, createdAt: visitorCreatedAt }),
+      );
+    } catch {
+      // Persistence is optional.
     }
   }
 
@@ -401,16 +474,33 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
     if (sessionId && resumeToken) return sessionId;
     if (sessionPromise) return sessionPromise;
     sessionPromise = (async () => {
+      if (visitorId && visitorCreatedAt && Date.now() - visitorCreatedAt > visitorMaxAge * 1000) {
+        visitorId = "";
+        visitorCreatedAt = 0;
+        try {
+          visitorStorage()?.removeItem(visitorStorageKey);
+        } catch {
+          // Persistence is optional.
+        }
+      }
+      restoreVisitor();
       const payload = await request<BrowserSessionResponse>("/browser/chat/sessions", {
         method: "POST",
         body: JSON.stringify({
           agent_id: config.agentId,
           title: config.title || "Website chat",
           metadata: config.metadata || { channel: "browser_widget" },
+          ...(config.visitorTracking === true ? { visitor_tracking: true } : {}),
+          ...(visitorId ? { visitor_id: visitorId } : {}),
         }),
       });
       sessionId = String(payload.data?.id || payload.data?.session_id || "");
       resumeToken = String(payload.data?.resume_token || "");
+      const returnedVisitorID = payload.data?.visitor_id;
+      if (config.visitorTracking === true && visitorIDIsValid(returnedVisitorID)) {
+        visitorId = returnedVisitorID;
+        persistVisitor();
+      }
       if (!sessionId || !resumeToken) {
         throw new BrowserChatError("Chat session could not be created.", 502);
       }
@@ -460,10 +550,20 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
 
     async createSession(title?: string): Promise<BrowserSessionResponse> {
       if (sessionId && resumeToken) {
-        return { id: sessionId, agent_id: config.agentId, title: title || config.title };
+        return {
+          id: sessionId,
+          agent_id: config.agentId,
+          title: title || config.title,
+          ...(visitorId ? { visitor_id: visitorId } : {}),
+        };
       }
       await ensureSession();
-      return { id: sessionId, agent_id: config.agentId, title: title || config.title };
+      return {
+        id: sessionId,
+        agent_id: config.agentId,
+        title: title || config.title,
+        ...(visitorId ? { visitor_id: visitorId } : {}),
+      };
     },
 
     async hydrate(): Promise<Message[]> {
@@ -554,6 +654,16 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
         });
       } catch {
         // Local reset must not be blocked by best-effort server revocation.
+      }
+    },
+
+    clearVisitor(): void {
+      visitorId = "";
+      visitorCreatedAt = 0;
+      try {
+        visitorStorage()?.removeItem(visitorStorageKey);
+      } catch {
+        // Persistence is optional.
       }
     },
 

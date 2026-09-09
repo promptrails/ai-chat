@@ -488,6 +488,52 @@ describe("PromptRails ecommerce widget", () => {
     })]);
   });
 
+  it("keeps implicit cart actions opt-in and requires a selected variant", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const response = {
+      output: { message: "Bir seçenek buldum." },
+      ui: {
+        version: "1",
+        resources: [{
+          id: "ticimax-42",
+          kind: "product",
+          attributes: {
+            name: "İpek Elbise",
+            price: 3499,
+            selected_variant_id: "variant-m-black",
+            selected_size: "M",
+            selected_color: "Siyah",
+            in_stock: true,
+          },
+        }],
+        actions: [{
+          kind: "resource.open",
+          resource_id: "ticimax-42",
+          label: "İncele",
+          payload: { url: "https://www.example.com/ipek-elbise" },
+        }],
+        suggestions: [],
+      },
+    };
+
+    expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
+
+    widget.setAttribute("implicit-cart-action", "true");
+    expect(widget.normalizeAnswer(response).products[0]).toMatchObject({
+      canAdd: true,
+      variantId: "variant-m-black",
+    });
+
+    delete response.ui.resources[0].attributes.in_stock;
+    expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
+
+    response.ui.resources[0].attributes.in_stock = true;
+    response.ui.resources[0].attributes.selected_variant_id = "";
+    expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
+  });
+
   it("preselects validated response variants and uses them for cart events", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");

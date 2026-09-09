@@ -17,6 +17,8 @@ export interface PromptRailsBrowserProviderConfig {
   metadata?: Record<string, unknown>;
   persistSession?: boolean;
   sessionMaxAge?: number;
+  visitorTracking?: boolean;
+  visitorMaxAge?: number;
   coordinateTabs?: boolean;
   onEvent?: (event: BrowserRuntimeEvent) => void;
 }
@@ -24,6 +26,7 @@ export interface PromptRailsBrowserProviderConfig {
 export interface PromptRailsBrowserProvider extends ChatProvider {
   hydrate(): Promise<Message[]>;
   newSession(): Promise<void>;
+  clearVisitor(): void;
   submitFeedback(executionId: string, value: 1 | -1): Promise<void>;
 }
 
@@ -115,6 +118,7 @@ export function createPromptRailsBrowserProvider(
 
     hydrate: () => runtime.hydrate(),
     newSession: () => runtime.newSession(),
+    clearVisitor: () => runtime.clearVisitor(),
     submitFeedback: (executionId, value) => runtime.submitFeedback(executionId, value),
     disconnect: () => runtime.disconnect(),
   };

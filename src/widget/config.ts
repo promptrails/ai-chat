@@ -29,6 +29,10 @@ export function parseScriptTagConfig(): Partial<WidgetConfig> | null {
     sessionMaxAge: script.dataset.sessionMaxAge
       ? parseInt(script.dataset.sessionMaxAge, 10)
       : undefined,
+    visitorTracking: script.dataset.visitorTracking === "true",
+    visitorMaxAge: script.dataset.visitorMaxAge
+      ? parseInt(script.dataset.visitorMaxAge, 10)
+      : undefined,
     stylesheetUrl: script.dataset.stylesheetUrl,
     newSessionLabel: script.dataset.newSessionLabel,
     feedbackLabel: script.dataset.feedbackLabel,
@@ -94,6 +98,8 @@ export function resolveConfig(config: Partial<WidgetConfig>): WidgetConfig {
     workspaceId: config.workspaceId,
     persistSession: config.persistSession ?? true,
     sessionMaxAge: config.sessionMaxAge,
+    visitorTracking: config.visitorTracking ?? false,
+    visitorMaxAge: config.visitorMaxAge,
     stylesheetUrl: config.stylesheetUrl,
     newSessionLabel: config.newSessionLabel ?? config.labels?.newSession ?? defaults.newSession,
     feedbackLabel: config.feedbackLabel ?? "Was this helpful?",

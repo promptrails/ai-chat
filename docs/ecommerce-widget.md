@@ -36,6 +36,7 @@ Pin a release in production:
   accent-color="#121212"
   persist-session="true"
   session-max-age="86400"
+  visitor-tracking="true"
   show-tool-activity="true"
   show-activity-duration="false"
   show-quantity="false"
@@ -102,6 +103,18 @@ With persistence enabled, the widget stores the session ID, the single-session
 resume capability, `lastActivityAt`, and at most 20 rendered messages. The
 default inactivity window is 86,400 seconds and the client hard-caps it at 30
 days. Use `persist-session="false"` on kiosks or shared devices.
+
+Anonymous visitor attribution is disabled by default. Set `visitor-tracking="true"`
+to let PromptRails issue and reuse a first-party anonymous ID across chat sessions.
+The ID is used only for trace grouping; it does not authorize sessions or tools.
+It expires after 90 days at most; shorten that with `visitor-max-age`. A consent
+withdrawal flow can call `element.clearVisitor()` to remove it immediately.
+
+`implicit-cart-action="true"` is an optional storefront safeguard. When a
+structured product contains a valid selected variant with explicit in-stock
+evidence but the agent omits its `cart.add` action, the widget can still show
+the add button. It remains disabled by default, and the host cart bridge must
+revalidate the variant and stock.
 
 ## Catalog contract
 

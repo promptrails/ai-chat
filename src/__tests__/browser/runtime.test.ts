@@ -3,6 +3,7 @@ import { BrowserChatError, createBrowserChatRuntime } from "../../browser";
 
 const SESSION_ID = "3E0A8svdnmVo1k9u7lfsNGyCFmg";
 const RESUME_TOKEN = "resume-token-with-at-least-32-characters";
+const VISITOR_ID = "3E0AJVhuIignLUfxjSZE2CKt5Z1";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -83,6 +84,78 @@ describe("browser chat runtime", () => {
     expect(localStorage.getItem("promptrails-chat-widget:workspace:agent")).not.toContain(
       "secret-token",
     );
+  });
+
+  it("keeps visitor tracking opt-in and reuses the server-issued visitor", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ data: { access_token: "token", expires_in: 900 } }))
+      .mockResolvedValueOnce(
+        json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN, visitor_id: VISITOR_ID } }),
+      )
+      .mockResolvedValueOnce(json({ data: {} }))
+      .mockResolvedValueOnce(
+        json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN, visitor_id: VISITOR_ID } }),
+      );
+    const runtime = createBrowserChatRuntime({
+      apiKey: "browser",
+      agentId: "agent",
+      workspaceId: "workspace",
+      visitorTracking: true,
+    });
+
+    await runtime.createSession();
+    await runtime.newSession();
+    await runtime.createSession();
+
+    const firstRequest = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    const secondRequest = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body));
+    expect(firstRequest).toMatchObject({ visitor_tracking: true });
+    expect(firstRequest).not.toHaveProperty("visitor_id");
+    expect(secondRequest).toMatchObject({
+      visitor_tracking: true,
+      visitor_id: VISITOR_ID,
+    });
+    expect(
+      JSON.parse(localStorage.getItem("promptrails-chat-widget:workspace:agent:visitor")!),
+    ).toMatchObject({ visitorId: VISITOR_ID, createdAt: expect.any(Number) });
+  });
+
+  it("expires stored visitor identities and exposes an explicit reset", async () => {
+    const visitorKey = "promptrails-chat-widget:workspace:agent:visitor";
+    localStorage.setItem(visitorKey, JSON.stringify({ visitorId: VISITOR_ID, createdAt: 1 }));
+    fetchMock
+      .mockResolvedValueOnce(json({ data: { access_token: "token", expires_in: 900 } }))
+      .mockResolvedValueOnce(
+        json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN, visitor_id: VISITOR_ID } }),
+      );
+    const runtime = createBrowserChatRuntime({
+      apiKey: "browser",
+      agentId: "agent",
+      workspaceId: "workspace",
+      visitorTracking: true,
+      visitorMaxAge: 60,
+    });
+
+    await runtime.createSession();
+    const request = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(request).not.toHaveProperty("visitor_id");
+    expect(localStorage.getItem(visitorKey)).not.toBeNull();
+
+    runtime.clearVisitor();
+    expect(localStorage.getItem(visitorKey)).toBeNull();
+  });
+
+  it("does not request visitor tracking by default", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ data: { access_token: "token", expires_in: 900 } }))
+      .mockResolvedValueOnce(json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN } }));
+    const runtime = createBrowserChatRuntime({ apiKey: "browser", agentId: "agent" });
+
+    await runtime.createSession();
+
+    const request = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(request).not.toHaveProperty("visitor_tracking");
+    expect(request).not.toHaveProperty("visitor_id");
   });
 
   it("returns a normalized retryable network error", async () => {

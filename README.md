@@ -124,6 +124,9 @@ React and talks directly to PromptRails' public browser chat runtime:
   greeting-mode="message"
   persist-session="true"
   session-max-age="86400"
+  visitor-tracking="true"
+  visitor-max-age="7776000"
+  implicit-cart-action="true"
   show-quantity="false"
   color-picker="swatches"
   legal-notice="Devam ederek {{link}} okuduğunuzu onaylıyorsunuz."
@@ -414,6 +417,8 @@ import { createOpenAIProvider } from "@promptrails/ai-chat/providers";
 | `data-z-index` | CSS z-index | `2147483000` |
 | `data-persist-session` | Resume verified history after reload | `true` |
 | `data-session-max-age` | Local inactivity lifetime in seconds | `86400` |
+| `data-visitor-tracking` | Reuse an anonymous visitor ID for trace grouping | `false` |
+| `data-visitor-max-age` | Anonymous visitor lifetime in seconds (max 90 days) | `7776000` |
 | `data-stylesheet-url` | Theme CSS loaded inside Shadow DOM | — |
 | `data-new-session-label` | Accessible new-session label | `"New conversation"` |
 | `data-feedback-label` | Feedback prompt | `"Was this helpful?"` |
