@@ -36,6 +36,7 @@ Pin a release in production:
   accent-color="#121212"
   persist-session="true"
   session-max-age="86400"
+  visitor-tracking="true"
   show-tool-activity="true"
   show-activity-duration="false"
   show-quantity="false"
@@ -102,6 +103,10 @@ With persistence enabled, the widget stores the session ID, the single-session
 resume capability, `lastActivityAt`, and at most 20 rendered messages. The
 default inactivity window is 86,400 seconds and the client hard-caps it at 30
 days. Use `persist-session="false"` on kiosks or shared devices.
+
+Anonymous visitor attribution is disabled by default. Set `visitor-tracking="true"`
+to let PromptRails issue and reuse a first-party anonymous ID across chat sessions.
+The ID is used only for trace grouping; it does not authorize sessions or tools.
 
 ## Catalog contract
 

@@ -34,6 +34,10 @@ export interface BrowserRuntimeConfig {
   workspaceId?: string;
   title?: string;
   metadata?: Record<string, unknown>;
+  /** Enable anonymous visitor attribution across browser chat sessions. Defaults to false. */
+  visitorTracking?: boolean;
+  /** Optional anonymous end-user ID used only for trace attribution. */
+  visitorId?: string;
   persistSession?: boolean;
   sessionMaxAge?: number;
   /** Override the localStorage namespace without changing authorization. */
@@ -56,6 +60,7 @@ export interface BrowserSessionResponse {
   agent_id?: string;
   title?: string;
   resume_token?: string;
+  visitor_id?: string;
   created_at?: string;
 }
 
@@ -127,6 +132,10 @@ function sessionIsValid(value: Partial<BrowserSessionSnapshot>, maxAgeMs: number
     age >= 0 &&
     age <= maxAgeMs
   );
+}
+
+function visitorIDIsValid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9A-Za-z]{27}$/.test(value);
 }
 
 function messageFromApi(item: BrowserMessageResponse): Message | null {
@@ -226,11 +235,14 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
   const storageKey =
     config.storageKey ||
     `promptrails-chat-widget:${config.workspaceId || "default"}:${config.agentId}`;
+  const visitorStorageKey = `${storageKey}:visitor`;
   const source = generateId();
   const listeners = new Set<(event: BrowserRuntimeEvent) => void>();
 
   let sessionId = "";
   let resumeToken = "";
+  let visitorId =
+    config.visitorTracking === true && visitorIDIsValid(config.visitorId) ? config.visitorId : "";
   let accessToken = "";
   let accessTokenExpiresAt = 0;
   let tokenPromise: Promise<string> | null = null;
@@ -248,6 +260,34 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
       return window.localStorage;
     } catch {
       return null;
+    }
+  }
+
+  function visitorStorage(): Storage | null {
+    if (config.visitorTracking !== true || typeof window === "undefined") return null;
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  }
+
+  function restoreVisitor(): void {
+    if (config.visitorTracking !== true || visitorId) return;
+    try {
+      const saved = visitorStorage()?.getItem(visitorStorageKey);
+      if (visitorIDIsValid(saved)) visitorId = saved;
+    } catch {
+      // Persistence is optional.
+    }
+  }
+
+  function persistVisitor(): void {
+    if (config.visitorTracking !== true || !visitorId) return;
+    try {
+      visitorStorage()?.setItem(visitorStorageKey, visitorId);
+    } catch {
+      // Persistence is optional.
     }
   }
 
@@ -401,16 +441,24 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
     if (sessionId && resumeToken) return sessionId;
     if (sessionPromise) return sessionPromise;
     sessionPromise = (async () => {
+      restoreVisitor();
       const payload = await request<BrowserSessionResponse>("/browser/chat/sessions", {
         method: "POST",
         body: JSON.stringify({
           agent_id: config.agentId,
           title: config.title || "Website chat",
           metadata: config.metadata || { channel: "browser_widget" },
+          ...(config.visitorTracking === true ? { visitor_tracking: true } : {}),
+          ...(visitorId ? { visitor_id: visitorId } : {}),
         }),
       });
       sessionId = String(payload.data?.id || payload.data?.session_id || "");
       resumeToken = String(payload.data?.resume_token || "");
+      const returnedVisitorID = payload.data?.visitor_id;
+      if (config.visitorTracking === true && visitorIDIsValid(returnedVisitorID)) {
+        visitorId = returnedVisitorID;
+        persistVisitor();
+      }
       if (!sessionId || !resumeToken) {
         throw new BrowserChatError("Chat session could not be created.", 502);
       }
@@ -460,10 +508,20 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
 
     async createSession(title?: string): Promise<BrowserSessionResponse> {
       if (sessionId && resumeToken) {
-        return { id: sessionId, agent_id: config.agentId, title: title || config.title };
+        return {
+          id: sessionId,
+          agent_id: config.agentId,
+          title: title || config.title,
+          ...(visitorId ? { visitor_id: visitorId } : {}),
+        };
       }
       await ensureSession();
-      return { id: sessionId, agent_id: config.agentId, title: title || config.title };
+      return {
+        id: sessionId,
+        agent_id: config.agentId,
+        title: title || config.title,
+        ...(visitorId ? { visitor_id: visitorId } : {}),
+      };
     },
 
     async hydrate(): Promise<Message[]> {

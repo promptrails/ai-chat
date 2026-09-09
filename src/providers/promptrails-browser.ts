@@ -17,6 +17,7 @@ export interface PromptRailsBrowserProviderConfig {
   metadata?: Record<string, unknown>;
   persistSession?: boolean;
   sessionMaxAge?: number;
+  visitorTracking?: boolean;
   coordinateTabs?: boolean;
   onEvent?: (event: BrowserRuntimeEvent) => void;
 }

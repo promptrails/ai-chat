@@ -234,6 +234,8 @@ export interface WidgetConfig {
   persistSession?: boolean;
   /** Local inactivity lifetime in seconds. Defaults to 24 hours. */
   sessionMaxAge?: number;
+  /** Persist an anonymous visitor ID for trace grouping. Defaults to false. */
+  visitorTracking?: boolean;
   /** Optional stylesheet loaded inside the widget's ShadowRoot. */
   stylesheetUrl?: string;
   newSessionLabel?: string;

@@ -258,7 +258,7 @@ import { normalizeChatUI } from "../ui/protocol";
   };
 
   class PromptRailsShopAssistant extends HTMLElement {
-    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "product-card-mode", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "launcher-icon", "show-launcher-mark", "show-launcher-subtitle", "greeting", "greeting-mode", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "show-tool-activity", "show-activity-duration", "show-quantity", "color-picker", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-required", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
+    static get observedAttributes() { return ["api-url", "workspace-id", "agent-id", "api-key", "catalog-url", "product-source", "product-card-mode", "brand", "assistant-name", "assistant-mark", "launcher-title", "launcher-subtitle", "launcher-icon", "show-launcher-mark", "show-launcher-subtitle", "greeting", "greeting-mode", "placeholder", "quick-prompts", "accent-color", "currency", "locale", "stylesheet-url", "theme-css", "style-nonce", "persist-session", "session-max-age", "visitor-tracking", "show-tool-activity", "show-activity-duration", "show-quantity", "color-picker", "tool-labels", "allowed-action-origins", "close-on-product-view", "legal-notice", "legal-url", "legal-link-label", "legal-accept-label", "legal-consent-required", "legal-consent-version", "legal-consent-max-age", "ai-disclaimer", "translations"];
     }
 
     constructor() {
@@ -317,7 +317,7 @@ import { normalizeChatUI } from "../ui/protocol";
 
     attributeChangedCallback(name) {
       if (!this.isConnected) return;
-      if (["api-url", "workspace-id", "agent-id", "api-key", "persist-session", "session-max-age"].includes(name)) {
+      if (["api-url", "workspace-id", "agent-id", "api-key", "persist-session", "session-max-age", "visitor-tracking"].includes(name)) {
         if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
         this.createRuntime();
         this.hydrationPromise = this.hydrateSession();
@@ -363,6 +363,7 @@ import { normalizeChatUI } from "../ui/protocol";
         styleNonce: this.getAttribute("style-nonce")?.trim() || "",
         persistSession: this.getAttribute("persist-session") !== "false",
         sessionMaxAgeMs: sessionMaxAgeSeconds * 1000,
+        visitorTracking: this.getAttribute("visitor-tracking") === "true",
         showToolActivity: this.getAttribute("show-tool-activity") !== "false",
         showActivityDuration: this.getAttribute("show-activity-duration") === "true",
         showQuantity: this.getAttribute("show-quantity") !== "false",
@@ -425,6 +426,7 @@ import { normalizeChatUI } from "../ui/protocol";
         metadata: { channel: "ecommerce_widget" },
         persistSession: this.config.persistSession,
         sessionMaxAge: Math.floor(this.config.sessionMaxAgeMs / 1000),
+        visitorTracking: this.config.visitorTracking,
         storageKey: `${this.storageKey}:session`,
         onEvent: (event) => this.emit("promptrails:runtime", event),
       });

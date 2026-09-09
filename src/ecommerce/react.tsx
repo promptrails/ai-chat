@@ -30,6 +30,7 @@ export interface ShopAssistantProps {
   themeCss?: string;
   persistSession?: boolean;
   sessionMaxAge?: number;
+  visitorTracking?: boolean;
   showToolActivity?: boolean;
   showActivityDuration?: boolean;
   showQuantity?: boolean;
@@ -75,6 +76,7 @@ const attributes = [
   ["themeCss", "theme-css"],
   ["persistSession", "persist-session"],
   ["sessionMaxAge", "session-max-age"],
+  ["visitorTracking", "visitor-tracking"],
   ["showToolActivity", "show-tool-activity"],
   ["showActivityDuration", "show-activity-duration"],
   ["showQuantity", "show-quantity"],
