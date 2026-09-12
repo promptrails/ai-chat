@@ -1,4 +1,4 @@
-/* global CSS, CustomEvent, HTMLElement, URL, customElements, document, fetch, localStorage, location, navigator, requestAnimationFrame, sessionStorage, window */
+/* global CSS, CustomEvent, HTMLElement, URL, customElements, document, fetch, localStorage, location, navigator, queueMicrotask, requestAnimationFrame, sessionStorage, window */
 import { createBrowserChatRuntime } from "../browser/runtime";
 import { normalizeChatUI } from "../ui/protocol";
 
@@ -284,6 +284,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.cartDrawerTrigger = null;
       this.activityStartedAt = 0;
       this.activityTimer = 0;
+      this.runtimeRebuildQueued = false;
       this.onWindowKey = (event) => this.handleWindowKey(event);
       this.onCartConfirmed = (event) => this.cartConfirmed(event);
       this.onCartFailed = (event) => this.cartFailed(event);
@@ -321,14 +322,58 @@ import { normalizeChatUI } from "../ui/protocol";
       if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
     }
 
-    attributeChangedCallback(name) {
+    /*
+     * Attributes that identify the backend. Changing one has to rebuild the
+     * runtime, because the old one is bound to the previous key/agent/session
+     * policy. Changing anything else is presentation and only re-renders.
+     */
+    static RUNTIME_ATTRIBUTES = new Set([
+      "api-url",
+      "workspace-id",
+      "agent-id",
+      "api-key",
+      "persist-session",
+      "session-max-age",
+      "visitor-tracking",
+      "visitor-max-age",
+    ]);
+
+    attributeChangedCallback(name, oldValue, newValue) {
       if (!this.isConnected) return;
-      if (["api-url", "workspace-id", "agent-id", "api-key", "persist-session", "session-max-age", "visitor-tracking", "visitor-max-age"].includes(name)) {
+      // Setting an attribute to the value it already holds is not a change.
+      // This callback used to ignore both values and rebuild regardless, so a
+      // host re-applying its configuration — which is the ordinary way to
+      // re-run an embed script — tore down a live runtime and fetched a new
+      // token for nothing.
+      if (oldValue === newValue) return;
+      if (PromptRailsShopAssistant.RUNTIME_ATTRIBUTES.has(name)) this.queueRuntimeRebuild();
+      this.renderShell();
+    }
+
+    /*
+     * One rebuild per batch of attribute writes.
+     *
+     * A host configures this element by setting attributes one after another,
+     * and eight of them are runtime-affecting. Rebuilding inside the callback
+     * meant eight teardowns and eight `POST /browser/chat/token` calls in the
+     * same tick — observed in production as six identical token requests
+     * within one millisecond, which then tripped the per-visitor rate limit
+     * and 429'd the visitor's own messages.
+     *
+     * Deferring to a microtask lets the whole batch land first, so the
+     * runtime is rebuilt once with the final configuration. Also re-checks
+     * `isConnected`: the element may have been removed while queued.
+     */
+    queueRuntimeRebuild() {
+      if (this.runtimeRebuildQueued) return;
+      this.runtimeRebuildQueued = true;
+      queueMicrotask(() => {
+        this.runtimeRebuildQueued = false;
+        if (!this.isConnected) return;
         if (typeof this.runtime?.disconnect === "function") this.runtime.disconnect();
         this.createRuntime();
         this.hydrationPromise = this.hydrateSession();
-      }
-      this.renderShell();
+      });
     }
 
     get config() {

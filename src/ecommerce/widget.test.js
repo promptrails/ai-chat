@@ -1,5 +1,5 @@
-/* global document, Event */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/* global document, Event, customElements, setTimeout */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import "./widget.js";
 
@@ -893,5 +893,97 @@ describe("PromptRails ecommerce widget", () => {
       color: "Red",
       quantity: 2,
     });
+  });
+});
+
+/*
+ * A host configures this element by writing attributes one after another, and
+ * eight of them are runtime-affecting. Before this was guarded, each write
+ * tore down the runtime and fetched a fresh chat token: six identical
+ * `POST /browser/chat/token` calls landed within one millisecond in
+ * production, which then tripped the per-visitor rate limit and 429'd the
+ * visitor's own messages. Re-applying the same configuration — what happens
+ * whenever an embed script runs a second time — did it too, for no change at
+ * all.
+ */
+describe("runtime rebuilds on attribute writes", () => {
+  const RUNTIME_ATTRS = {
+    "api-url": "https://api.example.test",
+    "workspace-id": "ws-1",
+    "agent-id": "agent-1",
+    "api-key": "pr_test",
+    "persist-session": "true",
+    "session-max-age": "3600",
+    "visitor-tracking": "true",
+    "visitor-max-age": "30",
+  };
+
+  /*
+   * Counting runtime constructions rather than token requests. The token is
+   * fetched lazily by the first call that needs one, so the network is a
+   * downstream symptom; the rebuild itself is the thing under test, and it is
+   * what makes a fresh token inevitable.
+   */
+  let rebuilds;
+
+  beforeEach(() => {
+    // One spy on the shared prototype, restored after each test — spying per
+    // test would stack on the previous spy and carry its counts forward.
+    rebuilds = vi.spyOn(customElements.get("promptrails-shop-assistant").prototype, "createRuntime");
+  });
+
+  afterEach(() => rebuilds.mockRestore());
+
+  async function mounted() {
+    const widget = document.createElement("promptrails-shop-assistant");
+    for (const [name, value] of Object.entries(RUNTIME_ATTRS)) widget.setAttribute(name, value);
+    document.body.appendChild(widget);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The mount itself builds one; the tests are about what happens after.
+    rebuilds.mockClear();
+    return widget;
+  }
+
+  it("does not rebuild when an attribute is re-applied unchanged", async () => {
+    const widget = await mounted();
+
+    // Exactly what a re-run embed script does: write the same config again.
+    for (const [name, value] of Object.entries(RUNTIME_ATTRS)) widget.setAttribute(name, value);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(rebuilds).not.toHaveBeenCalled();
+  });
+
+  it("rebuilds once for a batch of genuinely changed attributes", async () => {
+    const widget = await mounted();
+
+    widget.setAttribute("api-key", "pr_other");
+    widget.setAttribute("agent-id", "agent-2");
+    widget.setAttribute("workspace-id", "ws-2");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // One rebuild for the batch, not one per attribute.
+    expect(rebuilds).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves presentation attributes alone", async () => {
+    const widget = await mounted();
+
+    widget.setAttribute("brand", "Other");
+    widget.setAttribute("accent-color", "#123456");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(rebuilds).not.toHaveBeenCalled();
+  });
+
+  // The rebuild is deferred, so the element can be gone by the time it runs.
+  it("does not rebuild after the element is removed", async () => {
+    const widget = await mounted();
+
+    widget.setAttribute("api-key", "pr_other");
+    widget.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(rebuilds).not.toHaveBeenCalled();
   });
 });
