@@ -365,6 +365,16 @@ import { normalizeChatUI } from "../ui/protocol";
      * `isConnected`: the element may have been removed while queued.
      */
     queueRuntimeRebuild() {
+      /*
+       * Nothing to rebuild before the first build. Upgrading an element the
+       * page already put in the DOM replays attributeChangedCallback for every
+       * observed attribute — eight of them runtime-affecting, each a genuine
+       * null -> value change — and only THEN calls connectedCallback. Queueing
+       * there meant connectedCallback built the runtime and the queued task
+       * immediately built a second one, which is the two-token page load this
+       * was supposed to end.
+       */
+      if (!this.runtime) return;
       if (this.runtimeRebuildQueued) return;
       this.runtimeRebuildQueued = true;
       queueMicrotask(() => {

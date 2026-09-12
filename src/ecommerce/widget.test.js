@@ -987,3 +987,66 @@ describe("runtime rebuilds on attribute writes", () => {
     expect(rebuilds).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * Upgrading an element the page has already placed in the DOM.
+ *
+ * When `customElements.define` runs after the host has created the element,
+ * set its attributes and appended it, the browser replays
+ * `attributeChangedCallback` for every observed attribute — null -> value, so
+ * every one is a genuine change — and only then calls `connectedCallback`.
+ *
+ * Queueing a rebuild during that replay produced two runtimes per page load:
+ * connectedCallback built the first, the queued task built a second. Measured
+ * on a live storefront with Playwright — one connectedCallback, eight rebuild
+ * queues, two createRuntime calls, two `POST /browser/chat/token`.
+ *
+ * happy-dom upgrades the element but performs no attribute replay (verified:
+ * zero attributeChangedCallback calls), so the replay is driven by hand here,
+ * in the order the spec gives it: every observed attribute while connected,
+ * then connectedCallback.
+ */
+describe("upgrade of an element already in the DOM", () => {
+  const RUNTIME_ATTRIBUTES = {
+    "api-url": "https://api.example.test",
+    "workspace-id": "ws-1",
+    "agent-id": "agent-1",
+    "api-key": "pr_test",
+    "persist-session": "true",
+    "session-max-age": "3600",
+    "visitor-tracking": "true",
+    "visitor-max-age": "30",
+  };
+
+  it("builds exactly one runtime", async () => {
+    const Base = customElements.get("promptrails-shop-assistant");
+    const tag = `probe-shop-assistant-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Holds connectedCallback back so the attribute replay lands first, the
+    // way it does on a real upgrade.
+    let connectable = false;
+    customElements.define(
+      tag,
+      class extends Base {
+        connectedCallback() {
+          if (connectable) super.connectedCallback();
+        }
+      },
+    );
+
+    const element = document.createElement(tag);
+    for (const [name, value] of Object.entries(RUNTIME_ATTRIBUTES)) element.setAttribute(name, value);
+    document.body.appendChild(element);
+
+    const builds = vi.spyOn(Base.prototype, "createRuntime");
+    for (const [name, value] of Object.entries(RUNTIME_ATTRIBUTES)) {
+      element.attributeChangedCallback(name, null, value);
+    }
+    connectable = true;
+    element.connectedCallback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(builds).toHaveBeenCalledTimes(1);
+    builds.mockRestore();
+  });
+});
