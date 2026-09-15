@@ -285,6 +285,11 @@ import { normalizeChatUI } from "../ui/protocol";
       this.activityStartedAt = 0;
       this.activityTimer = 0;
       this.runtimeRebuildQueued = false;
+      // Whether connectedCallback has finished its first pass. An upgrade
+      // replays every attribute before it runs, so this is what separates
+      // "the element is still being set up" from "the host configured it
+      // later" — two orders that need opposite answers in queueRuntimeRebuild.
+      this.connectedOnce = false;
       this.onWindowKey = (event) => this.handleWindowKey(event);
       this.onCartConfirmed = (event) => this.cartConfirmed(event);
       this.onCartFailed = (event) => this.cartFailed(event);
@@ -307,6 +312,9 @@ import { normalizeChatUI } from "../ui/protocol";
       window.addEventListener("promptrails:cart-failed", this.onCartFailed);
       window.addEventListener("online", this.onConnectivity);
       window.addEventListener("offline", this.onConnectivity);
+      // Last, so anything above that happens to touch an attribute is still
+      // treated as part of this first pass and does not queue a second build.
+      this.connectedOnce = true;
     }
 
     disconnectedCallback() {
@@ -366,15 +374,28 @@ import { normalizeChatUI } from "../ui/protocol";
      */
     queueRuntimeRebuild() {
       /*
-       * Nothing to rebuild before the first build. Upgrading an element the
-       * page already put in the DOM replays attributeChangedCallback for every
+       * Nothing to do before the first pass. Upgrading an element the page
+       * already put in the DOM replays attributeChangedCallback for every
        * observed attribute — eight of them runtime-affecting, each a genuine
        * null -> value change — and only THEN calls connectedCallback. Queueing
        * there meant connectedCallback built the runtime and the queued task
        * immediately built a second one, which is the two-token page load this
        * was supposed to end.
+       *
+       * This used to test `!this.runtime`, which reads the same for an upgrade
+       * and the opposite for a host that configures the element AFTER mounting
+       * it. That order is not hypothetical: it is how an embed hands over a
+       * credential it fetches late, so a page view that never opens the
+       * assistant never asks for one. Such an element mounted unconfigured,
+       * built nothing, and then — key in hand, `configured` true — was refused
+       * its first build forever, because it had no runtime to rebuild. Every
+       * message went to the local catalog fallback and the footer said Demo
+       * mode, on a shop that was correctly installed.
        */
-      if (!this.runtime) return;
+      if (!this.connectedOnce) return;
+      // Still nothing to build: an unconfigured element setting attributes one
+      // at a time would otherwise re-hydrate on each of them for no runtime.
+      if (!this.runtime && !this.configured) return;
       if (this.runtimeRebuildQueued) return;
       this.runtimeRebuildQueued = true;
       queueMicrotask(() => {

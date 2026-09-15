@@ -1050,3 +1050,60 @@ describe("upgrade of an element already in the DOM", () => {
     builds.mockRestore();
   });
 });
+
+/*
+ * The other half of the same ordering question.
+ *
+ * An upgrade replays attributes and then connects; an embed that fetches its
+ * credential lazily does the reverse — connect an unconfigured element, then
+ * hand it a key once a visitor actually opens the assistant. Both arrive as
+ * attributeChangedCallback on a connected element, and they need opposite
+ * answers: skip the first (connectedCallback is about to build), act on the
+ * second (nothing else ever will).
+ *
+ * Guarding on `!this.runtime` collapsed them, and the late one lost. The
+ * element mounted with no key, built nothing, and was then refused its first
+ * build forever because it had no runtime to rebuild — leaving `configured`
+ * true, `runtime` null, and send() falling through to the local catalog with
+ * "Demo mode" in the footer, on a correctly installed shop.
+ */
+describe("a host that configures the element after mounting it", () => {
+  it("builds a runtime when the credential arrives late", async () => {
+    const element = document.createElement("promptrails-shop-assistant");
+    element.setAttribute("accent-color", "#000000");
+    document.body.appendChild(element);
+    await customElements.whenDefined("promptrails-shop-assistant");
+    await Promise.resolve();
+
+    expect(element.configured).toBe(false);
+    expect(element.runtime, "an unconfigured mount must not build or fetch a token").toBeFalsy();
+
+    element.setAttribute("workspace-id", "ws-1");
+    element.setAttribute("agent-id", "agent-1");
+    element.setAttribute("api-url", "https://api.example.test");
+    element.setAttribute("api-key", "pr_test");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(element.configured).toBe(true);
+    expect(element.runtime, "a configured element with no runtime answers every message locally").toBeTruthy();
+  });
+
+  it("builds exactly once however many attributes the host sets", async () => {
+    const element = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(element);
+    await customElements.whenDefined("promptrails-shop-assistant");
+    await Promise.resolve();
+
+    const builds = vi.spyOn(Object.getPrototypeOf(element), "createRuntime");
+    element.setAttribute("workspace-id", "ws-1");
+    element.setAttribute("agent-id", "agent-1");
+    element.setAttribute("api-url", "https://api.example.test");
+    element.setAttribute("api-key", "pr_test");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // One, not four: the batch still collapses into a single microtask, which
+    // is what stops a configuration handover being four chat-token requests.
+    expect(builds).toHaveBeenCalledTimes(1);
+    builds.mockRestore();
+  });
+});
