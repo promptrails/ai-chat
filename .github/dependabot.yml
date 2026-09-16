@@ -20,6 +20,15 @@ updates:
       timezone: Europe/Istanbul
     open-pull-requests-limit: 5
     groups:
+      # Biome gets a group of its own, and that is the whole point of it.
+      # A formatter upgrade rewrites every file it touches, so it must arrive as
+      # one pull request that can carry its own reformat commit — not swept into
+      # the weekly minor/patch batch, where it lands a new formatter with no
+      # reformat and reddens CI on a change that touched nothing related. The
+      # exact pin in package.json makes the upgrade visible; this keeps it alone.
+      biome:
+        patterns:
+          - "@biomejs/*"
       npm-minor-patch:
         update-types:
           - minor
