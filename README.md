@@ -430,8 +430,8 @@ npm install        # Install dependencies
 npm run build      # Build library + widget
 npm test           # Run tests
 npm run typecheck  # TypeScript check
-npm run lint       # ESLint + Prettier
-npm run lint:fix   # Auto-fix lint issues
+npm run check      # Biome: lint + format + import order
+npm run check:fix  # Biome: apply fixes
 npm run dev        # Watch mode
 ```
 

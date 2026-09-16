@@ -8,5 +8,5 @@ const generated = resolve(root, "src/widget/widget-styles.ts");
 const css = await readFile(source, "utf8");
 await writeFile(
   generated,
-  `// Generated from styles.css. Do not edit directly.\n// prettier-ignore\nexport const WIDGET_CSS = ${JSON.stringify(css)};\n`,
+  `// Generated from styles.css. Do not edit directly.\n// biome-ignore format: one generated line, rewritten by scripts/widget-styles.mjs\nexport const WIDGET_CSS = ${JSON.stringify(css)};\n`,
 );
