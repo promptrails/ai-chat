@@ -149,7 +149,7 @@
   "dependencies": {
     "@promptrails/sdk": "^0.9.1",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^3.7.0"
   },
   "overrides": {
     "esbuild": "^0.28.1"
