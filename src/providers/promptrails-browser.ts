@@ -1,7 +1,7 @@
 import {
   BrowserChatError,
-  createBrowserChatRuntime,
   type BrowserRuntimeEvent,
+  createBrowserChatRuntime,
 } from "../browser/runtime";
 import { generateId } from "../core/utils";
 import type { ChatSession, Message } from "../types";

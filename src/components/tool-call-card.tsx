@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { ToolCall } from "../types";
 import { cn } from "../lib/cn";
+import type { ToolCall } from "../types";
 
 export interface ToolCallCardProps {
   toolCall: ToolCall;

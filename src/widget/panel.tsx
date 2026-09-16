@@ -1,16 +1,16 @@
 import {
-  type KeyboardEvent,
   forwardRef,
+  type KeyboardEvent,
   useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
   useState,
 } from "react";
+import { generateId } from "../core/utils";
 import type { PromptRailsBrowserProvider } from "../providers/promptrails-browser";
 import type { ChatProvider } from "../providers/types";
 import type { Message, WidgetConfig } from "../types";
-import { generateId } from "../core/utils";
 
 interface PanelProps {
   isOpen: boolean;

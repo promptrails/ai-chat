@@ -1,5 +1,5 @@
-import type { MessageBubbleProps } from "../types";
 import { cn } from "../lib/cn";
+import type { MessageBubbleProps } from "../types";
 import { ToolCallCard } from "./tool-call-card";
 
 export function MessageBubble({

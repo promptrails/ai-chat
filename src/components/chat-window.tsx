@@ -1,7 +1,7 @@
-import type { ChatWindowProps } from "../types";
-import { useChat } from "../core/use-chat";
 import { useApproval } from "../core/use-approval";
+import { useChat } from "../core/use-chat";
 import { cn } from "../lib/cn";
+import type { ChatWindowProps } from "../types";
 import { AgentSteps } from "./agent-steps";
 import { ApprovalCard } from "./approval-card";
 import { ChatHeader } from "./chat-header";

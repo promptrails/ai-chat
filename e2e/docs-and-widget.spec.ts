@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 
 test("corporate docs launches the credential-free ecommerce demo", async ({ page }) => {
   await page.goto("/#demo");
-  await expect(page.getByRole("heading", { name: "Agent-ready chat, for every interface." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Agent-ready chat, for every interface." }),
+  ).toBeVisible();
   await expect(page.getByText("One browser runtime. Any renderer.")).toBeVisible();
   await page.getByRole("button", { name: "Launch Widget on This Page" }).click();
 
@@ -28,9 +30,9 @@ test("widget remains inside the mobile viewport", async ({ page }) => {
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width);
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
   if (viewport!.width <= 560) {
-    const composerFontSize = await assistant.locator("textarea").evaluate((element) =>
-      Number.parseFloat(getComputedStyle(element).fontSize),
-    );
+    const composerFontSize = await assistant
+      .locator("textarea")
+      .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
     expect(composerFontSize).toBeGreaterThanOrEqual(16);
   }
 });

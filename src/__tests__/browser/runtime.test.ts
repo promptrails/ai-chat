@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BrowserChatError, createBrowserChatRuntime } from "../../browser";
+import { type BrowserChatError, createBrowserChatRuntime } from "../../browser";
 
 const SESSION_ID = "3E0A8svdnmVo1k9u7lfsNGyCFmg";
 const RESUME_TOKEN = "resume-token-with-at-least-32-characters";

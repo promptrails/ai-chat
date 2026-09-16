@@ -1,5 +1,5 @@
-import type { TypingIndicatorProps } from "../types";
 import { cn } from "../lib/cn";
+import type { TypingIndicatorProps } from "../types";
 
 export function TypingIndicator({ className, text }: TypingIndicatorProps) {
   return (

@@ -57,9 +57,11 @@ describe("PromptRails ecommerce widget", () => {
     widget.shadowRoot?.querySelector(".accept-legal")?.click();
 
     expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
-    expect(globalThis.localStorage.getItem(
-      "promptrails-shop-widget:legal-workspace:legal-agent:legal-consent:2026-08",
-    )).toContain('"version":"2026-08"');
+    expect(
+      globalThis.localStorage.getItem(
+        "promptrails-shop-widget:legal-workspace:legal-agent:legal-consent:2026-08",
+      ),
+    ).toContain('"version":"2026-08"');
   });
 
   it("can show a passive legal notice without blocking the composer", () => {
@@ -73,12 +75,15 @@ describe("PromptRails ecommerce widget", () => {
 
     expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
     expect(widget.shadowRoot?.querySelector(".accept-legal")).toBeNull();
-    expect(widget.shadowRoot?.querySelector(".legal-summary a")?.textContent)
-      .toBe("Gizlilik Politikası");
-    expect(widget.shadowRoot?.querySelector(".legal-summary")?.textContent)
-      .toContain("Devam ederek Gizlilik Politikası okuduğunu onaylıyorsun.");
-    expect(widget.shadowRoot?.querySelector(".legal-summary")?.textContent)
-      .toContain("· Yanıtlar yapay zekâ tarafından oluşturulur.");
+    expect(widget.shadowRoot?.querySelector(".legal-summary a")?.textContent).toBe(
+      "Gizlilik Politikası",
+    );
+    expect(widget.shadowRoot?.querySelector(".legal-summary")?.textContent).toContain(
+      "Devam ederek Gizlilik Politikası okuduğunu onaylıyorsun.",
+    );
+    expect(widget.shadowRoot?.querySelector(".legal-summary")?.textContent).toContain(
+      "· Yanıtlar yapay zekâ tarafından oluşturulur.",
+    );
     expect(widget.shadowRoot?.querySelectorAll(".legal-summary")).toHaveLength(1);
   });
 
@@ -89,8 +94,9 @@ describe("PromptRails ecommerce widget", () => {
     widget.setAttribute("launcher-icon", "message");
     document.body.appendChild(widget);
 
-    expect(widget.shadowRoot?.querySelector(".welcome-message p")?.textContent)
-      .toBe("Sana uygun parçaları birlikte bulalım.");
+    expect(widget.shadowRoot?.querySelector(".welcome-message p")?.textContent).toBe(
+      "Sana uygun parçaları birlikte bulalım.",
+    );
     expect(widget.shadowRoot?.querySelector(".launcher i svg")).not.toBeNull();
   });
 
@@ -112,17 +118,31 @@ describe("PromptRails ecommerce widget", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-card-mode", "summary");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Öneri",
-      products: [{ id: "product-1", slug: "elbise", name: "Elbise", price: 100, sizes: ["36", "38"], colors: ["Siyah"], canAdd: true }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Öneri",
+        products: [
+          {
+            id: "product-1",
+            slug: "elbise",
+            name: "Elbise",
+            price: 100,
+            sizes: ["36", "38"],
+            colors: ["Siyah"],
+            canAdd: true,
+          },
+        ],
+      },
+    ];
     widget.paintMessages();
 
     expect(widget.shadowRoot?.querySelector(".variants")).toBeNull();
     expect(widget.shadowRoot?.querySelector("[data-add]")).toBeNull();
     expect(widget.shadowRoot?.querySelector("[data-view]")).not.toBeNull();
-    expect(widget.shadowRoot?.querySelector(".recommendations-list")?.classList.contains("is-summary")).toBe(true);
+    expect(
+      widget.shadowRoot?.querySelector(".recommendations-list")?.classList.contains("is-summary"),
+    ).toBe(true);
     expect(widget.shadowRoot?.querySelector(".recommendation-actions")).toBeNull();
     widget.shadowRoot?.querySelector("[data-cart-drawer-open]")?.click();
     expect(widget.shadowRoot?.querySelector(".cart-drawer")?.hidden).toBe(false);
@@ -133,14 +153,20 @@ describe("PromptRails ecommerce widget", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-card-mode", "summary");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Öneri",
-      products: [{ id: "product-1", name: "Siyah Amora Kontrast Detaylı Uzun Elbise", price: 100 }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Öneri",
+        products: [
+          { id: "product-1", name: "Siyah Amora Kontrast Detaylı Uzun Elbise", price: 100 },
+        ],
+      },
+    ];
     widget.paintMessages();
 
-    expect(widget.shadowRoot?.querySelector(".recommendation")?.classList.contains("has-long-title")).toBe(true);
+    expect(
+      widget.shadowRoot?.querySelector(".recommendation")?.classList.contains("has-long-title"),
+    ).toBe(true);
   });
 
   it("selects an in-stock variant in the product drawer before emitting cart-add", () => {
@@ -148,13 +174,22 @@ describe("PromptRails ecommerce widget", () => {
     widget.setAttribute("product-card-mode", "summary");
     widget.setAttribute("product-source", "response");
     document.body.appendChild(widget);
-    const answer = widget.normalizeAnswer({ output: { message: "Öneri", products: [{
-      id: "product-1", name: "Elbise", price: 100,
-      variants: [
-        { id: "variant-s", size: "S", color: "Siyah", stock: 2 },
-        { id: "variant-m", size: "M", color: "Siyah", stock: 1 },
-      ],
-    }] } });
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Öneri",
+        products: [
+          {
+            id: "product-1",
+            name: "Elbise",
+            price: 100,
+            variants: [
+              { id: "variant-s", size: "S", color: "Siyah", stock: 2 },
+              { id: "variant-m", size: "M", color: "Siyah", stock: 1 },
+            ],
+          },
+        ],
+      },
+    });
     widget.messages = [{ role: "assistant", ...answer }];
     const listener = vi.fn();
     widget.addEventListener("promptrails:cart-add", listener);
@@ -178,10 +213,19 @@ describe("PromptRails ecommerce widget", () => {
     widget.setAttribute("product-card-mode", "summary");
     widget.setAttribute("product-source", "response");
     document.body.appendChild(widget);
-    const answer = widget.normalizeAnswer({ output: { message: "Öneri", products: [{
-      id: "product-1", name: "Elbise", price: 100,
-      variants: [{ id: "variant-s", size: "S", color: "Siyah", stock: 0 }],
-    }] } });
+    const answer = widget.normalizeAnswer({
+      output: {
+        message: "Öneri",
+        products: [
+          {
+            id: "product-1",
+            name: "Elbise",
+            price: 100,
+            variants: [{ id: "variant-s", size: "S", color: "Siyah", stock: 0 }],
+          },
+        ],
+      },
+    });
     widget.messages = [{ role: "assistant", ...answer }];
     widget.paintMessages();
 
@@ -194,14 +238,16 @@ describe("PromptRails ecommerce widget", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-card-mode", "summary");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Öneriler",
-      products: [
-        { id: "product-1", slug: "elbise", name: "Elbise", price: 100 },
-        { id: "product-2", slug: "ceket", name: "Ceket", price: 200 },
-      ],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Öneriler",
+        products: [
+          { id: "product-1", slug: "elbise", name: "Elbise", price: 100 },
+          { id: "product-2", slug: "ceket", name: "Ceket", price: 200 },
+        ],
+      },
+    ];
     widget.paintMessages();
 
     const controls = widget.shadowRoot?.querySelectorAll("[data-carousel-step]");
@@ -237,14 +283,16 @@ describe("PromptRails ecommerce widget", () => {
     widget.setAttribute("legal-url", "https://shop.example.com/privacy");
     document.body.appendChild(widget);
 
-    expect(widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent)
-      .toContain("border-radius: 0");
+    expect(
+      widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent,
+    ).toContain("border-radius: 0");
 
     widget.shadowRoot?.querySelector(".accept-legal")?.click();
 
     expect(widget.shadowRoot?.querySelector(".composer")).not.toBeNull();
-    expect(widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent)
-      .toContain("border-radius: 0");
+    expect(
+      widget.shadowRoot?.querySelector("style[data-promptrails-theme]")?.textContent,
+    ).toContain("border-radius: 0");
   });
 
   it("renders color swatches and can hide quantity selection", () => {
@@ -252,11 +300,13 @@ describe("PromptRails ecommerce widget", () => {
     widget.setAttribute("color-picker", "swatches");
     widget.setAttribute("show-quantity", "false");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Öneri",
-      products: [{ id: "product-1", name: "Elbise", price: 100, colors: ["Siyah", "Bordo"] }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Öneri",
+        products: [{ id: "product-1", name: "Elbise", price: 100, colors: ["Siyah", "Bordo"] }],
+      },
+    ];
     widget.paintMessages();
 
     const swatches = widget.shadowRoot?.querySelectorAll("[data-color-value]");
@@ -388,7 +438,8 @@ describe("PromptRails ecommerce widget", () => {
 
     const answer = widget.normalizeAnswer({
       output: {
-        message: "Size yardımcı olalım: https://api.whatsapp.com/send?phone=905421257885&text=Bilgi%20Almak%20%C4%B0stiyorum",
+        message:
+          "Size yardımcı olalım: https://api.whatsapp.com/send?phone=905421257885&text=Bilgi%20Almak%20%C4%B0stiyorum",
       },
     });
     widget.messages = [{ role: "assistant", ...answer }];
@@ -416,8 +467,16 @@ describe("PromptRails ecommerce widget", () => {
           version: "1",
           resources: [],
           actions: [
-            { kind: "resource.open", label: "Destek", payload: { url: "https://help.example.com/contact" } },
-            { kind: "resource.open", label: "Blocked", payload: { url: "https://evil.example/phish" } },
+            {
+              kind: "resource.open",
+              label: "Destek",
+              payload: { url: "https://help.example.com/contact" },
+            },
+            {
+              kind: "resource.open",
+              label: "Blocked",
+              payload: { url: "https://evil.example/phish" },
+            },
             { kind: "resource.open", label: "Script", payload: { url: "javascript:alert(1)" } },
           ],
           suggestions: [],
@@ -425,9 +484,7 @@ describe("PromptRails ecommerce widget", () => {
       },
     });
 
-    expect(answer.actions).toEqual([
-      { url: "https://help.example.com/contact", label: "Destek" },
-    ]);
+    expect(answer.actions).toEqual([{ url: "https://help.example.com/contact", label: "Destek" }]);
   });
 
   it("keeps untrusted URLs as inert text instead of creating navigation", () => {
@@ -453,39 +510,43 @@ describe("PromptRails ecommerce widget", () => {
     const answer = widget.normalizeAnswer({
       output: {
         message: "Size iki seçenek buldum.",
-        products: [{
-          id: "ticimax-42",
-          name: "<b>İpek Elbise</b>",
-          category: { id: "7", name: "Elbise" },
-          url: "https://www.example.com/ipek-elbise",
-          images: [{ url: "https://cdn.example.com/ipek-elbise.jpg" }],
-          price: { min: 3499, currency: "TRY" },
-          variants: [
-            { color: "Siyah", size: "S", stock: 2 },
-            { color: "Siyah", size: "M", stock: 1 },
-          ],
-          selected_size: "M",
-          selected_color: "Siyah",
-          selected_variant_id: "variant-m-black",
-          reason: "Davet stilinize uygun.",
-        }],
+        products: [
+          {
+            id: "ticimax-42",
+            name: "<b>İpek Elbise</b>",
+            category: { id: "7", name: "Elbise" },
+            url: "https://www.example.com/ipek-elbise",
+            images: [{ url: "https://cdn.example.com/ipek-elbise.jpg" }],
+            price: { min: 3499, currency: "TRY" },
+            variants: [
+              { color: "Siyah", size: "S", stock: 2 },
+              { color: "Siyah", size: "M", stock: 1 },
+            ],
+            selected_size: "M",
+            selected_color: "Siyah",
+            selected_variant_id: "variant-m-black",
+            reason: "Davet stilinize uygun.",
+          },
+        ],
       },
     });
 
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    expect(answer.products).toEqual([expect.objectContaining({
-      id: "ticimax-42",
-      name: "İpek Elbise",
-      category: "Elbise",
-      url: "https://www.example.com/ipek-elbise",
-      imageUrl: "https://cdn.example.com/ipek-elbise.jpg",
-      price: 3499,
-      sizes: ["S", "M"],
-      colors: ["Siyah"],
-      selectedSize: "M",
-      selectedColor: "Siyah",
-      variantId: "variant-m-black",
-    })]);
+    expect(answer.products).toEqual([
+      expect.objectContaining({
+        id: "ticimax-42",
+        name: "İpek Elbise",
+        category: "Elbise",
+        url: "https://www.example.com/ipek-elbise",
+        imageUrl: "https://cdn.example.com/ipek-elbise.jpg",
+        price: 3499,
+        sizes: ["S", "M"],
+        colors: ["Siyah"],
+        selectedSize: "M",
+        selectedColor: "Siyah",
+        variantId: "variant-m-black",
+      }),
+    ]);
   });
 
   it("keeps implicit cart actions opt-in and requires a selected variant", () => {
@@ -496,24 +557,28 @@ describe("PromptRails ecommerce widget", () => {
       output: { message: "Bir seçenek buldum." },
       ui: {
         version: "1",
-        resources: [{
-          id: "ticimax-42",
-          kind: "product",
-          attributes: {
-            name: "İpek Elbise",
-            price: 3499,
-            selected_variant_id: "variant-m-black",
-            selected_size: "M",
-            selected_color: "Siyah",
-            in_stock: true,
+        resources: [
+          {
+            id: "ticimax-42",
+            kind: "product",
+            attributes: {
+              name: "İpek Elbise",
+              price: 3499,
+              selected_variant_id: "variant-m-black",
+              selected_size: "M",
+              selected_color: "Siyah",
+              in_stock: true,
+            },
           },
-        }],
-        actions: [{
-          kind: "resource.open",
-          resource_id: "ticimax-42",
-          label: "İncele",
-          payload: { url: "https://www.example.com/ipek-elbise" },
-        }],
+        ],
+        actions: [
+          {
+            kind: "resource.open",
+            resource_id: "ticimax-42",
+            label: "İncele",
+            payload: { url: "https://www.example.com/ipek-elbise" },
+          },
+        ],
         suggestions: [],
       },
     };
@@ -538,23 +603,27 @@ describe("PromptRails ecommerce widget", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Pick",
-      products: [{
-        id: "product-38",
-        slug: "black-dress",
-        name: "Black Dress",
-        category: "Dresses",
-        price: 100,
-        sizes: ["34", "36", "38", "40"],
-        colors: ["Black", "Red"],
-        selectedSize: "38",
-        selectedColor: "Red",
-        variantId: "variant-38-red",
-        canAdd: true,
-      }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [
+          {
+            id: "product-38",
+            slug: "black-dress",
+            name: "Black Dress",
+            category: "Dresses",
+            price: 100,
+            sizes: ["34", "36", "38", "40"],
+            colors: ["Black", "Red"],
+            selectedSize: "38",
+            selectedColor: "Red",
+            variantId: "variant-38-red",
+            canAdd: true,
+          },
+        ],
+      },
+    ];
     const listener = vi.fn();
     widget.addEventListener("promptrails:cart-add", listener);
 
@@ -580,31 +649,39 @@ describe("PromptRails ecommerce widget", () => {
     const answer = widget.normalizeAnswer({
       output: {
         message: "Pick",
-        products: [{
-          id: "discounted-product",
-          slug: "discounted-dress",
-          name: "Discounted Dress",
-          category: "Dresses",
-          price: 1200,
-          sizes: ["38"],
-          colors: ["Black"],
-          attributes: { compare_at_price: 1500 },
-          can_view: true,
-        }],
+        products: [
+          {
+            id: "discounted-product",
+            slug: "discounted-dress",
+            name: "Discounted Dress",
+            category: "Dresses",
+            price: 1200,
+            sizes: ["38"],
+            colors: ["Black"],
+            attributes: { compare_at_price: 1500 },
+            can_view: true,
+          },
+        ],
       },
     });
-    widget.messages = [{
-      role: "assistant",
-      text: answer.message,
-      products: answer.products,
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: answer.message,
+        products: answer.products,
+      },
+    ];
 
     widget.paintMessages();
 
-    expect(widget.shadowRoot?.querySelector(".product-title")?.textContent).toBe("Discounted Dress");
+    expect(widget.shadowRoot?.querySelector(".product-title")?.textContent).toBe(
+      "Discounted Dress",
+    );
     expect(widget.shadowRoot?.querySelector(".price del")?.textContent).toContain("1.500");
     expect(widget.shadowRoot?.querySelectorAll(".variant-locked")).toHaveLength(2);
-    expect(widget.shadowRoot?.querySelectorAll('[data-variant="size"], [data-variant="color"]')).toHaveLength(0);
+    expect(
+      widget.shadowRoot?.querySelectorAll('[data-variant="size"], [data-variant="color"]'),
+    ).toHaveLength(0);
   });
 
   it("ignores selected variants that are not in the allowlisted options", () => {
@@ -615,71 +692,85 @@ describe("PromptRails ecommerce widget", () => {
     const answer = widget.normalizeAnswer({
       output: {
         message: "Pick",
-        products: [{
-          id: "product-1",
-          name: "Dress",
-          sizes: ["34", "36"],
-          colors: ["Black"],
-          selected_size: "38",
-          selected_color: "Red",
-        }],
+        products: [
+          {
+            id: "product-1",
+            name: "Dress",
+            sizes: ["34", "36"],
+            colors: ["Black"],
+            selected_size: "38",
+            selected_color: "Red",
+          },
+        ],
       },
     });
 
-    expect(answer.products[0]).toEqual(expect.objectContaining({
-      selectedSize: "",
-      selectedColor: "",
-    }));
+    expect(answer.products[0]).toEqual(
+      expect.objectContaining({
+        selectedSize: "",
+        selectedColor: "",
+      }),
+    );
   });
 
   it("emits the allowlisted response product URL without requiring a browser catalog", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Pick",
-      products: [{
-        id: "product-1",
-        slug: "dress",
-        url: "https://www.example.com/dress",
-        name: "Dress",
-        category: "Dresses",
-        price: 100,
-      }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [
+          {
+            id: "product-1",
+            slug: "dress",
+            url: "https://www.example.com/dress",
+            name: "Dress",
+            category: "Dresses",
+            price: 100,
+          },
+        ],
+      },
+    ];
     const listener = vi.fn();
     widget.addEventListener("promptrails:product-view", listener);
     widget.paintMessages();
 
     widget.shadowRoot.querySelector("[data-view]").click();
 
-    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-      detail: {
-        productId: "product-1",
-        slug: "dress",
-        url: "https://www.example.com/dress",
-      },
-    }));
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: {
+          productId: "product-1",
+          slug: "dress",
+          url: "https://www.example.com/dress",
+        },
+      }),
+    );
   });
 
   it("opens the same trusted product from its photo and title", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
     document.body.appendChild(widget);
-    widget.messages = [{
-      role: "assistant",
-      text: "Pick",
-      products: [{
-        id: "product-1",
-        slug: "dress",
-        url: "https://www.example.com/dress",
-        imageUrl: "https://www.example.com/dress.jpg",
-        name: "Dress",
-        category: "Dresses",
-        price: 100,
-      }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [
+          {
+            id: "product-1",
+            slug: "dress",
+            url: "https://www.example.com/dress",
+            imageUrl: "https://www.example.com/dress.jpg",
+            name: "Dress",
+            category: "Dresses",
+            price: 100,
+          },
+        ],
+      },
+    ];
     const listener = vi.fn();
     widget.addEventListener("promptrails:product-view", listener);
     widget.paintMessages();
@@ -688,13 +779,16 @@ describe("PromptRails ecommerce widget", () => {
     widget.shadowRoot.querySelector(".product-title").click();
 
     expect(listener).toHaveBeenCalledTimes(2);
-    expect(listener).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      detail: {
-        productId: "product-1",
-        slug: "dress",
-        url: "https://www.example.com/dress",
-      },
-    }));
+    expect(listener).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        detail: {
+          productId: "product-1",
+          slug: "dress",
+          url: "https://www.example.com/dress",
+        },
+      }),
+    );
   });
 
   it("keeps product photo and title styles separate from action buttons", () => {
@@ -809,26 +903,42 @@ describe("PromptRails ecommerce widget", () => {
   it("closes before product navigation and keeps action labels concise", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);
-    widget.catalog = [{ id: "product-1", slug: "dress", name: "A very long dress name", category: "Dresses", price: 100 }];
+    widget.catalog = [
+      {
+        id: "product-1",
+        slug: "dress",
+        name: "A very long dress name",
+        category: "Dresses",
+        price: 100,
+      },
+    ];
     widget.open();
-    widget.messages = [{
-      role: "assistant",
-      text: "Pick",
-      products: [{ ...widget.catalog[0], canView: true, viewLabel: widget.labels.view }],
-    }];
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [{ ...widget.catalog[0], canView: true, viewLabel: widget.labels.view }],
+      },
+    ];
     widget.paintMessages();
 
     widget.shadowRoot.querySelector(".recommendation-actions [data-view]").click();
 
-    expect(widget.shadowRoot.querySelector(".recommendation-actions [data-view]")?.textContent).toBe("İncele");
+    expect(
+      widget.shadowRoot.querySelector(".recommendation-actions [data-view]")?.textContent,
+    ).toBe("İncele");
     expect(widget.shadowRoot.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
   });
 
   it("recovers the cart button when the host reports a failure", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);
-    widget.catalog = [{ id: "product-1", slug: "dress", name: "Dress", category: "Dresses", price: 100 }];
-    widget.messages = [{ role: "assistant", text: "Pick", products: [{ ...widget.catalog[0], canAdd: true }] }];
+    widget.catalog = [
+      { id: "product-1", slug: "dress", name: "Dress", category: "Dresses", price: 100 },
+    ];
+    widget.messages = [
+      { role: "assistant", text: "Pick", products: [{ ...widget.catalog[0], canAdd: true }] },
+    ];
     widget.paintMessages();
 
     const button = widget.shadowRoot.querySelector("[data-add]");
@@ -929,7 +1039,10 @@ describe("runtime rebuilds on attribute writes", () => {
   beforeEach(() => {
     // One spy on the shared prototype, restored after each test — spying per
     // test would stack on the previous spy and carry its counts forward.
-    rebuilds = vi.spyOn(customElements.get("promptrails-shop-assistant").prototype, "createRuntime");
+    rebuilds = vi.spyOn(
+      customElements.get("promptrails-shop-assistant").prototype,
+      "createRuntime",
+    );
   });
 
   afterEach(() => rebuilds.mockRestore());
@@ -1035,7 +1148,8 @@ describe("upgrade of an element already in the DOM", () => {
     );
 
     const element = document.createElement(tag);
-    for (const [name, value] of Object.entries(RUNTIME_ATTRIBUTES)) element.setAttribute(name, value);
+    for (const [name, value] of Object.entries(RUNTIME_ATTRIBUTES))
+      element.setAttribute(name, value);
     document.body.appendChild(element);
 
     const builds = vi.spyOn(Base.prototype, "createRuntime");
@@ -1085,7 +1199,10 @@ describe("a host that configures the element after mounting it", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(element.configured).toBe(true);
-    expect(element.runtime, "a configured element with no runtime answers every message locally").toBeTruthy();
+    expect(
+      element.runtime,
+      "a configured element with no runtime answers every message locally",
+    ).toBeTruthy();
   });
 
   it("builds exactly once however many attributes the host sets", async () => {

@@ -1,9 +1,9 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
-import type { ChatProvider } from "../providers/types";
-import type { WidgetConfig } from "../types";
 import { createCustomProvider } from "../providers/custom";
 import { createOpenAIProvider } from "../providers/openai";
 import { createPromptRailsBrowserProvider } from "../providers/promptrails-browser";
+import type { ChatProvider } from "../providers/types";
+import type { WidgetConfig } from "../types";
 import { Bubble } from "./bubble";
 import { Panel, type PanelHandle } from "./panel";
 

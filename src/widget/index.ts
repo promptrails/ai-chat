@@ -1,7 +1,6 @@
-import type { WidgetConfig } from "../types";
+import type { WidgetConfig, WidgetController } from "../types";
 import { parseScriptTagConfig, resolveConfig } from "./config";
 import { mount, unmount } from "./mount";
-import type { WidgetController } from "../types";
 
 let currentConfig: WidgetConfig | null = null;
 let controller: Omit<WidgetController, "destroy"> | null = null;
@@ -96,4 +95,4 @@ if (typeof document !== "undefined") {
 }
 
 export default PromptRailsChat;
-export { init, open, close, toggle, send, newSession, updateContext, destroy };
+export { close, destroy, init, newSession, open, send, toggle, updateContext };

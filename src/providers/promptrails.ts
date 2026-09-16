@@ -210,13 +210,15 @@ export function createPromptRailsProvider(config: PromptRailsProviderConfig): Ch
       });
 
       return {
-        messages: result.data.map((item): Message => ({
-          id: item.id || generateId(),
-          role: item.role as Message["role"],
-          content: item.content,
-          status: "complete",
-          createdAt: new Date(item.created_at),
-        })),
+        messages: result.data.map(
+          (item): Message => ({
+            id: item.id || generateId(),
+            role: item.role as Message["role"],
+            content: item.content,
+            status: "complete",
+            createdAt: new Date(item.created_at),
+          }),
+        ),
         total: result.meta.total,
       };
     },

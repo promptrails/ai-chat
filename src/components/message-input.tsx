@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useCallback, useEffect, useRef } from "react";
-import type { MessageInputProps } from "../types";
 import { cn } from "../lib/cn";
+import type { MessageInputProps } from "../types";
 
 export function MessageInput({
   value,

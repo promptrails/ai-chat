@@ -1,5 +1,5 @@
-import type { StreamEvent } from "../types";
 import { parseSSEStream } from "../core/utils";
+import type { StreamEvent } from "../types";
 import type { ChatProvider, SendMessageParams, SendMessageResult } from "./types";
 
 export interface CustomProviderConfig {
