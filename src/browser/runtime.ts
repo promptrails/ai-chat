@@ -115,8 +115,15 @@ export interface BrowserChatRuntime {
   disconnect(): void;
 }
 
+// Trailing slashes are trimmed in a loop rather than with /\/+$/: that
+// pattern backtracks quadratically over a long run of slashes that does not
+// end the string, and the base URL comes from the embedding page.
 function cleanBase(value: string): string {
-  return value.trim().replace(/\/+$/, "");
+  let base = value.trim();
+  while (base.endsWith("/")) {
+    base = base.slice(0, -1);
+  }
+  return base;
 }
 
 function apiError(status: number, payload: ApiEnvelope<unknown>): BrowserChatError {

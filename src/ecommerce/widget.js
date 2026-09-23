@@ -34,10 +34,16 @@ import { normalizeChatUI } from "../ui/protocol";
       (character) =>
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character],
     );
-  const cleanBase = (value) =>
-    String(value ?? "")
-      .trim()
-      .replace(/\/+$/, "");
+  // Looped rather than /\/+$/, which backtracks quadratically over a long
+  // run of slashes that does not end the string; this value is an attribute
+  // on the host page.
+  const cleanBase = (value) => {
+    let base = String(value ?? "").trim();
+    while (base.endsWith("/")) {
+      base = base.slice(0, -1);
+    }
+    return base;
+  };
   const plainText = (value) =>
     String(value ?? "")
       .replace(/<[^>]*>/g, " ")
