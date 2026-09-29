@@ -991,6 +991,7 @@ import { normalizeChatUI } from "../ui/protocol";
             slug: button.dataset.view,
             productId: button.dataset.productId,
             ...(product?.url ? { url: product.url } : {}),
+            ...(product?.name ? { name: product.name } : {}),
           });
         };
       });
@@ -1193,6 +1194,7 @@ import { normalizeChatUI } from "../ui/protocol";
         productId: product.id,
         variantId: variant?.id || (!product.variants?.length ? product.variantId : undefined),
         slug: product.slug,
+        ...(product.name ? { name: product.name } : {}),
         size: selected.size || product.selectedSize || product.sizes?.[0],
         color: selected.color || product.selectedColor || product.colors?.[0],
         quantity: Number(selected.quantity) || 1,

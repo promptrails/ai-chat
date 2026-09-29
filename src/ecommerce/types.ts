@@ -11,6 +11,7 @@ export interface ProductViewDetail {
   productId: string;
   slug: string;
   url?: string;
+  name?: string;
 }
 
 export interface CartAddDetail extends ProductViewDetail {

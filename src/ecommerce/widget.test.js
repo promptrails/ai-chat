@@ -745,6 +745,7 @@ describe("PromptRails ecommerce widget", () => {
           productId: "product-1",
           slug: "dress",
           url: "https://www.example.com/dress",
+          name: "Dress",
         },
       }),
     );
@@ -786,6 +787,7 @@ describe("PromptRails ecommerce widget", () => {
           productId: "product-1",
           slug: "dress",
           url: "https://www.example.com/dress",
+          name: "Dress",
         },
       }),
     );
