@@ -793,6 +793,41 @@ describe("PromptRails ecommerce widget", () => {
     );
   });
 
+  it("announces each recommended product once, with its name, and not again on repaint", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [
+          { id: "product-1", slug: "dress", name: "Dress", price: 100 },
+          { id: "product-2", slug: "coat", name: "Coat", price: 200 },
+        ],
+      },
+    ];
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:product-recommended", listener);
+
+    widget.paintMessages();
+    widget.paintMessages();
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        detail: { productId: "product-1", slug: "dress", name: "Dress" },
+      }),
+    );
+    expect(listener).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        detail: { productId: "product-2", slug: "coat", name: "Coat" },
+      }),
+    );
+  });
+
   it("keeps product photo and title styles separate from action buttons", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     const css = `${widget.styles("#111")}${widget.compactStyles()}`;

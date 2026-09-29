@@ -14,6 +14,11 @@ export interface ProductViewDetail {
   name?: string;
 }
 
+export interface ProductRecommendedDetail {
+  productId: string;
+  slug?: string;
+  name?: string;
+}
 export interface CartAddDetail extends ProductViewDetail {
   variantId?: string;
   size?: string;
@@ -32,6 +37,7 @@ export interface ShopAssistantEventMap {
   "promptrails:session-new": CustomEvent<Record<string, never>>;
   "promptrails:legal-consent": CustomEvent<{ acceptedAt: number; version: string }>;
   "promptrails:product-view": CustomEvent<ProductViewDetail>;
+  "promptrails:product-recommended": CustomEvent<ProductRecommendedDetail>;
   "promptrails:cart-add": CustomEvent<CartAddDetail>;
   "promptrails:action-open": CustomEvent<ActionOpenDetail>;
   "promptrails:feedback": CustomEvent<{ executionId: string; value: 1 | -1 }>;

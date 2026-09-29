@@ -463,6 +463,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.ready = false;
       this.activeTools = new Map();
       this.cartTimers = new Map();
+      this.recommendedProducts = new Set();
       this.cartDrawerProductId = "";
       this.cartDrawerTrigger = null;
       this.activityStartedAt = 0;
@@ -1306,6 +1307,7 @@ import { normalizeChatUI } from "../ui/protocol";
 
     async startNewSession() {
       this.messages = [];
+      this.recommendedProducts = new Set();
       try {
         localStorage.removeItem(this.storageKey);
         sessionStorage.removeItem(this.storageKey);
@@ -1796,6 +1798,25 @@ import { normalizeChatUI } from "../ui/protocol";
         .join("");
       this.bind();
       this.scroll(this.messages.at(-1)?.role === "assistant" ? "message" : "bottom");
+      this.announceRecommendations();
+    }
+
+    // Fire promptrails:product-recommended once per product the assistant has
+    // surfaced this session. paintMessages re-renders on every update, so the
+    // Set (reset on a new session) keeps a product from re-announcing on repaint.
+    announceRecommendations() {
+      for (const message of this.messages) {
+        if (message.role !== "assistant") continue;
+        for (const product of message.products || []) {
+          if (!product?.id || this.recommendedProducts.has(product.id)) continue;
+          this.recommendedProducts.add(product.id);
+          this.emit("promptrails:product-recommended", {
+            productId: String(product.id),
+            ...(product.slug ? { slug: product.slug } : {}),
+            ...(product.name ? { name: product.name } : {}),
+          });
+        }
+      }
     }
 
     productMarkup(products = []) {
