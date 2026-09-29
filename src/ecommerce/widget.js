@@ -950,10 +950,16 @@ import { normalizeChatUI } from "../ui/protocol";
           }
         };
       this.root.querySelectorAll(".initial button").forEach((button) => {
-        button.onclick = () => this.send(button.textContent);
+        button.onclick = () => {
+          this.emit("promptrails:quick-prompt", { promptLabel: button.textContent });
+          this.send(button.textContent);
+        };
       });
       this.root.querySelectorAll("[data-quick]").forEach((button) => {
-        button.onclick = () => this.send(button.dataset.quick);
+        button.onclick = () => {
+          this.emit("promptrails:quick-prompt", { promptLabel: button.textContent });
+          this.send(button.dataset.quick);
+        };
       });
       this.root.querySelectorAll(".recommendations-carousel").forEach((carousel) => {
         const track = carousel.querySelector(".recommendations-list");

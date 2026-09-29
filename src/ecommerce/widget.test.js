@@ -41,6 +41,20 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelectorAll(".quick.initial button")).toHaveLength(2);
   });
 
+  it("emits promptrails:quick-prompt with the label when a configured prompt is clicked", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("quick-prompts", '["Yeni gelenler","1000 TL altı"]');
+    document.body.appendChild(widget);
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:quick-prompt", listener);
+
+    widget.shadowRoot.querySelectorAll(".quick.initial button")[0].click();
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { promptLabel: "Yeni gelenler" } }),
+    );
+  });
+
   it("requires explicit legal consent and persists the accepted version", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("workspace-id", "legal-workspace");
