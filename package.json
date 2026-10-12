@@ -148,6 +148,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "overrides": {
-    "esbuild": "$esbuild"
+    "esbuild": "$esbuild",
+    "postcss-selector-parser": ">=7.1.6"
   }
 }
