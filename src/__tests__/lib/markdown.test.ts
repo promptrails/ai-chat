@@ -18,6 +18,16 @@ describe("renderChatMarkdown", () => {
     );
   });
 
+  it("recovers lists flattened into a single model response paragraph", () => {
+    const html = renderChatMarkdown(
+      "Kampanyalar şunlardır: - **Ayakkabı:** İkinci ürün %50. - **Çanta:** Sepette %20. Genel bilgi. **Kurallar:** - Kampanyalar birleşmez. - Ürün etiketi doğrulanır.",
+    );
+
+    expect(html).toBe(
+      "<p>Kampanyalar şunlardır:</p><ul><li><strong>Ayakkabı:</strong> İkinci ürün %50.</li><li><strong>Çanta:</strong> Sepette %20. Genel bilgi.</li></ul><p><strong>Kurallar:</strong></p><ul><li>Kampanyalar birleşmez.</li><li>Ürün etiketi doğrulanır.</li></ul>",
+    );
+  });
+
   it("escapes raw HTML and drops executable link targets", () => {
     const html = renderChatMarkdown("<img src=x onerror=alert(1)> [aç](javascript:alert(1))");
 

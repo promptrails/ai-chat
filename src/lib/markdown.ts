@@ -4,7 +4,15 @@ const SAFE_LINK_PROTOCOLS = /^(https?:\/\/|mailto:|tel:|\/|#)/i;
 export function renderChatMarkdown(value: string): string {
   if (!value) return "";
 
-  const lines = value.replace(/\r\n?/g, "\n").split("\n");
+  const normalized = value
+    .replace(/\r\n?/g, "\n")
+    // Models occasionally flatten a Markdown list into one paragraph. Recover
+    // only unambiguous item boundaries: a spaced dash followed by bold text or
+    // an uppercase Turkish/Latin letter.
+    .replace(/\s+-\s+(?=(?:\*\*|[A-ZÇĞİÖŞÜ]))/g, "\n- ")
+    // Keep a bold section label visually separate from the preceding sentence.
+    .replace(/([.!?])\s+(?=\*\*[^*\n]+:\*\*)/g, "$1\n\n");
+  const lines = normalized.split("\n");
   const blocks: string[] = [];
   let paragraph: string[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
