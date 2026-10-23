@@ -1,4 +1,5 @@
 import { cn } from "../lib/cn";
+import { renderChatMarkdown } from "../lib/markdown";
 import type { MessageBubbleProps } from "../types";
 import { ToolCallCard } from "./tool-call-card";
 
@@ -43,7 +44,7 @@ export function MessageBubble({
             <div
               className="prc-prose prc-prose-sm prc-max-w-none"
               dangerouslySetInnerHTML={{
-                __html: renderSimpleMarkdown(message.content),
+                __html: renderChatMarkdown(message.content),
               }}
             />
           ) : (
@@ -61,61 +62,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
-
-/**
- * Minimal markdown renderer for chat messages.
- * Supports: bold, italic, inline code, code blocks, links, line breaks.
- */
-function renderSimpleMarkdown(text: string): string {
-  if (!text) return "";
-
-  let html = escapeHtml(text);
-
-  // Code blocks (```)
-  html = html.replace(
-    /```(\w*)\n([\s\S]*?)```/g,
-    '<pre class="prc-rounded prc-bg-gray-800 prc-text-gray-100 prc-p-3 prc-my-2 prc-overflow-x-auto prc-text-xs"><code>$2</code></pre>',
-  );
-
-  // Inline code (`)
-  html = html.replace(
-    /`([^`]+)`/g,
-    '<code class="prc-rounded prc-bg-gray-100 prc-px-1.5 prc-py-0.5 prc-text-xs prc-font-mono">$1</code>',
-  );
-
-  // Bold (**text**)
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-  // Italic (*text*)
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-  // Links [text](url)
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label: string, href: string) => {
-    const safeHref = sanitizeLinkHref(href);
-    return safeHref
-      ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="prc-text-primary prc-underline">${label}</a>`
-      : label;
-  });
-
-  // Line breaks
-  html = html.replace(/\n/g, "<br />");
-
-  return html;
-}
-
-function sanitizeLinkHref(value: string): string {
-  const candidate = value.trim();
-  return /^(https?:\/\/|mailto:|tel:|\/|#)/i.test(candidate) ? candidate : "";
-}
-
-function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
-  };
-  return text.replace(/[&<>"']/g, (m) => map[m] ?? m);
 }

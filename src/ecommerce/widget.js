@@ -1,5 +1,6 @@
 /* global CSS, CustomEvent, HTMLElement, URL, customElements, document, fetch, localStorage, location, navigator, queueMicrotask, requestAnimationFrame, sessionStorage, window */
 import { createBrowserChatRuntime } from "../browser/runtime";
+import { renderChatMarkdown } from "../lib/markdown";
 import { normalizeChatUI } from "../ui/protocol";
 
 (() => {
@@ -1799,7 +1800,7 @@ import { normalizeChatUI } from "../ui/protocol";
         .map((message, index) =>
           message.role === "user"
             ? `<article class="message user"><p>${safe(message.text)}</p></article>`
-            : `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><p>${safe(message.text)}</p>${this.actionMarkup(message.actions)}${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`,
+            : `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><div class="markdown">${renderChatMarkdown(message.text)}</div>${this.actionMarkup(message.actions)}${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`,
         )
         .join("");
       this.bind();
@@ -1943,7 +1944,24 @@ import { normalizeChatUI } from "../ui/protocol";
         .welcome-message { margin-top: 0; padding: 0 0 12px; border: 0; text-align: left; }
         .welcome-message > div > p { color: var(--pt-chat-text, #171715); }
         .message > p,
-        .message.assistant > div > p { font-size: 12px; }
+        .message.assistant .markdown {
+          border: 1px solid var(--pt-chat-border, #e0dcd4);
+          border-radius: 2px 13px 13px 13px;
+          background: var(--pt-chat-surface, #fff);
+          padding: 12px 14px;
+          font-size: 12px;
+        }
+        .message.assistant .markdown p { margin: 0; }
+        .message.assistant .markdown p + p,
+        .message.assistant .markdown ul + p,
+        .message.assistant .markdown ol + p { margin-top: 10px; }
+        .message.assistant .markdown ul,
+        .message.assistant .markdown ol { margin: 8px 0; padding-left: 20px; }
+        .message.assistant .markdown li + li { margin-top: 6px; }
+        .message.assistant .markdown a { color: inherit; text-underline-offset: 2px; }
+        .message.assistant .markdown code { padding: 1px 4px; border-radius: 3px; background: #f1eee8; font: .92em ui-monospace, monospace; }
+        .message.assistant .markdown pre { overflow-x: auto; margin: 9px 0 0; padding: 10px; border-radius: 5px; background: #252525; color: #fff; }
+        .message.assistant .markdown pre code { padding: 0; background: transparent; color: inherit; }
         .recommendations-list { gap: 8px; }
         .recommendation {
           position: relative;
