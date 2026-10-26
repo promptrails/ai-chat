@@ -49,4 +49,3 @@ updates:
           - version-update:semver-major
     labels:
       - dependencies
-
