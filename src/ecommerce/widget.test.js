@@ -219,7 +219,38 @@ describe("PromptRails ecommerce widget", () => {
       size: "M",
       color: "Siyah",
       quantity: 1,
+      viaDrawer: true,
     });
+  });
+
+  it("reports the card's add click as cart-intent before the drawer takes a variant", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-card-mode", "summary");
+    document.body.appendChild(widget);
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Öneri",
+        products: [{ id: "product-1", slug: "elbise", name: "Elbise", price: 100 }],
+      },
+    ];
+    const intent = vi.fn();
+    const add = vi.fn();
+    window.addEventListener("promptrails:cart-intent", intent);
+    window.addEventListener("promptrails:cart-add", add);
+    widget.paintMessages();
+
+    widget.shadowRoot.querySelector("[data-cart-drawer-open]").click();
+    window.removeEventListener("promptrails:cart-intent", intent);
+    window.removeEventListener("promptrails:cart-add", add);
+
+    expect(intent).toHaveBeenCalledTimes(1);
+    expect(intent.mock.calls[0][0].detail).toEqual({
+      productId: "product-1",
+      slug: "elbise",
+      name: "Elbise",
+    });
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("does not render a plus or cart action for out-of-stock products", () => {
