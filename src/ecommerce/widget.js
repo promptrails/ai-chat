@@ -1005,6 +1005,15 @@ import { normalizeChatUI } from "../ui/protocol";
       });
       this.root.querySelectorAll("[data-cart-drawer-open]").forEach((button) => {
         button.onclick = () => {
+          // The card's add button: the shopper asked to add this product, even
+          // though the drawer still has to take a size before the cart call.
+          const product = this.findProduct(button.dataset.cartDrawerOpen);
+          if (product)
+            this.emit("promptrails:cart-intent", {
+              productId: product.id,
+              slug: product.slug,
+              ...(product.name ? { name: product.name } : {}),
+            });
           this.openCartDrawer(button.dataset.cartDrawerOpen, button);
         };
       });
@@ -1186,11 +1195,11 @@ import { normalizeChatUI } from "../ui/protocol";
       if (add)
         add.onclick = () => {
           const product = this.findProduct(add.dataset.add);
-          if (product) this.requestCartAdd(product, add);
+          if (product) this.requestCartAdd(product, add, { viaDrawer: true });
         };
     }
 
-    requestCartAdd(product, button) {
+    requestCartAdd(product, button, { viaDrawer = false } = {}) {
       if (!product || product.canAdd === false || product.inStock === false || button.disabled)
         return;
       const selected = this.selectedVariants?.[product.id] || {};
@@ -1206,6 +1215,8 @@ import { normalizeChatUI } from "../ui/protocol";
         size: selected.size || product.selectedSize || product.sizes?.[0],
         color: selected.color || product.selectedColor || product.colors?.[0],
         quantity: Number(selected.quantity) || 1,
+        // Its promptrails:cart-intent already reported the shopper's click.
+        ...(viaDrawer ? { viaDrawer: true } : {}),
       });
       window.clearTimeout(this.cartTimers.get(product.id));
       this.cartTimers.set(

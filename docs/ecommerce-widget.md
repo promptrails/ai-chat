@@ -306,7 +306,7 @@ await assistant.send("Bu ürünü tamamlayan bir çanta bul");
 await assistant.newSession();
 ```
 
-Use `locale="en-US"` for the built-in English dictionary or pass a JSON `translations` attribute to override individual labels. Product cards support size, color, and quantity selection before emitting `promptrails:cart-add`.
+Use `locale="en-US"` for the built-in English dictionary or pass a JSON `translations` attribute to override individual labels. Product cards support size, color, and quantity selection before emitting `promptrails:cart-add`. In the summary card mode the card's add button opens a drawer for that selection and emits `promptrails:cart-intent` (`productId`, `slug`, `name`) on the click; the drawer's `promptrails:cart-add` then carries `viaDrawer: true`, so analytics can count the click once.
 
 ## Tool activity
 

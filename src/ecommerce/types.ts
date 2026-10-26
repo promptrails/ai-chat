@@ -24,6 +24,8 @@ export interface CartAddDetail extends ProductViewDetail {
   size?: string;
   color?: string;
   quantity: number;
+  /** Added from the product drawer, which a promptrails:cart-intent opened. */
+  viaDrawer?: boolean;
 }
 
 export interface ActionOpenDetail {
@@ -39,6 +41,8 @@ export interface ShopAssistantEventMap {
   "promptrails:quick-prompt": CustomEvent<{ promptLabel: string }>;
   "promptrails:product-view": CustomEvent<ProductViewDetail>;
   "promptrails:product-recommended": CustomEvent<ProductRecommendedDetail>;
+  /** The card's add button was clicked; the drawer opens to pick a variant. */
+  "promptrails:cart-intent": CustomEvent<ProductViewDetail>;
   "promptrails:cart-add": CustomEvent<CartAddDetail>;
   "promptrails:action-open": CustomEvent<ActionOpenDetail>;
   "promptrails:feedback": CustomEvent<{ executionId: string; value: 1 | -1 }>;
