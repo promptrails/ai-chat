@@ -90,9 +90,9 @@ feedback. See [the generic browser widget guide](docs/browser-widget.md).
 Widget API:
 
 ```js
-PromptRailsChat.open();    // Open the chat panel
-PromptRailsChat.close();   // Close the chat panel
-PromptRailsChat.toggle();  // Toggle open/close
+PromptRailsChat.open(); // Open the chat panel
+PromptRailsChat.close(); // Close the chat panel
+PromptRailsChat.toggle(); // Toggle open/close
 await PromptRailsChat.send("Track my order");
 await PromptRailsChat.newSession();
 PromptRailsChat.updateContext({ accountTier: "gold" });
@@ -307,16 +307,16 @@ Main hook for chat functionality.
 
 ```ts
 const {
-  messages,     // Message[]
-  isLoading,    // boolean
-  error,        // Error | null
-  input,        // string — controlled input value
-  setInput,     // (value: string) => void
-  sendMessage,  // (content: string) => Promise<void>
+  messages, // Message[]
+  isLoading, // boolean
+  error, // Error | null
+  input, // string — controlled input value
+  setInput, // (value: string) => void
+  sendMessage, // (content: string) => Promise<void>
   handleSubmit, // (e?: FormEvent) => void
-  retry,        // (messageId: string) => Promise<void>
-  clearMessages,// () => void
-  setMessages,  // (messages: Message[]) => void
+  retry, // (messageId: string) => Promise<void>
+  clearMessages, // () => void
+  setMessages, // (messages: Message[]) => void
 } = useChat({ provider, sessionId, initialMessages, onError, onFinish });
 ```
 
@@ -326,11 +326,11 @@ Low-level streaming control.
 
 ```ts
 const {
-  isStreaming,  // boolean
-  content,     // string — accumulated content
-  error,       // Error | null
+  isStreaming, // boolean
+  content, // string — accumulated content
+  error, // Error | null
   startStream, // (generator: AsyncGenerator<StreamEvent>) => void
-  stopStream,  // () => void
+  stopStream, // () => void
 } = useStreaming({ onChunk, onComplete, onError });
 ```
 
@@ -340,12 +340,12 @@ Track multi-step agent executions.
 
 ```ts
 const {
-  steps,          // AgentStep[]
-  currentStep,    // AgentStep | null
-  isRunning,      // boolean
-  error,          // Error | null
+  steps, // AgentStep[]
+  currentStep, // AgentStep | null
+  isRunning, // boolean
+  error, // Error | null
   trackExecution, // (executionId: string) => void
-  cancel,         // () => void
+  cancel, // () => void
 } = useAgent({ provider, onStepUpdate, onComplete, onError, pollIntervalMs });
 ```
 
@@ -358,26 +358,26 @@ execution parked at `waiting_approval`; `refresh()` loads that inbox, and
 ```ts
 const {
   pendingApprovals, // ApprovalRequest[]
-  approve,          // (id: string, reason?: string) => Promise<void>
-  reject,           // (id: string, reason?: string) => Promise<void>
-  isDeciding,       // boolean
-  addApproval,      // (request: ApprovalRequest) => void
-  refresh,          // () => Promise<void> — reload the waiting_approval inbox
+  approve, // (id: string, reason?: string) => Promise<void>
+  reject, // (id: string, reason?: string) => Promise<void>
+  isDeciding, // boolean
+  addApproval, // (request: ApprovalRequest) => void
+  refresh, // () => Promise<void> — reload the waiting_approval inbox
 } = useApproval({ provider, onApprovalRequired, onApprovalDecided });
 ```
 
 ## Components
 
-| Component | Description |
-|-----------|-------------|
-| `<ChatWindow />` | Full chat interface with header, messages, input |
-| `<MessageBubble />` | Single message bubble with markdown support |
-| `<MessageInput />` | Auto-resizing textarea with send button |
-| `<TypingIndicator />` | Bouncing dots animation |
-| `<AgentSteps />` | Collapsible execution step timeline |
-| `<ApprovalCard />` | Approve/reject card with reason input |
-| `<ChatHeader />` | Title bar with online indicator |
-| `<ScrollAnchor />` | Auto-scroll to newest messages |
+| Component             | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `<ChatWindow />`      | Full chat interface with header, messages, input |
+| `<MessageBubble />`   | Single message bubble with markdown support      |
+| `<MessageInput />`    | Auto-resizing textarea with send button          |
+| `<TypingIndicator />` | Bouncing dots animation                          |
+| `<AgentSteps />`      | Collapsible execution step timeline              |
+| `<ApprovalCard />`    | Approve/reject card with reason input            |
+| `<ChatHeader />`      | Title bar with online indicator                  |
+| `<ScrollAnchor />`    | Auto-scroll to newest messages                   |
 
 Import components individually or from the main entry:
 
@@ -399,29 +399,29 @@ import { createOpenAIProvider } from "@promptrails/ai-chat/providers";
 
 ## Widget Configuration
 
-| Attribute | Description | Default |
-|-----------|-------------|---------|
-| `data-provider` | `"promptrails"`, `"openai"`, `"custom"` | required |
-| `data-api-key` | API key for the provider | — |
-| `data-base-url` | Backend API URL | — |
-| `data-agent-id` | PromptRails agent ID | — |
-| `data-workspace-id` | Local session storage namespace | — |
-| `data-model` | LLM model name (OpenAI) | `"gpt-4o-mini"` |
-| `data-title` | Chat window title | `"Chat"` |
-| `data-placeholder` | Input placeholder text | `"Type a message..."` |
-| `data-greeting` | Initial greeting message | — |
-| `data-position` | `"bottom-right"` or `"bottom-left"` | `"bottom-right"` |
-| `data-primary-color` | Hex color for theming | `"#2563eb"` |
-| `data-width` | Panel width in pixels | `380` |
-| `data-height` | Panel height in pixels | `600` |
-| `data-z-index` | CSS z-index | `2147483000` |
-| `data-persist-session` | Resume verified history after reload | `true` |
-| `data-session-max-age` | Local inactivity lifetime in seconds | `86400` |
-| `data-visitor-tracking` | Reuse an anonymous visitor ID for trace grouping | `false` |
-| `data-visitor-max-age` | Anonymous visitor lifetime in seconds (max 90 days) | `7776000` |
-| `data-stylesheet-url` | Theme CSS loaded inside Shadow DOM | — |
-| `data-new-session-label` | Accessible new-session label | `"New conversation"` |
-| `data-feedback-label` | Feedback prompt | `"Was this helpful?"` |
+| Attribute                | Description                                         | Default               |
+| ------------------------ | --------------------------------------------------- | --------------------- |
+| `data-provider`          | `"promptrails"`, `"openai"`, `"custom"`             | required              |
+| `data-api-key`           | API key for the provider                            | —                     |
+| `data-base-url`          | Backend API URL                                     | —                     |
+| `data-agent-id`          | PromptRails agent ID                                | —                     |
+| `data-workspace-id`      | Local session storage namespace                     | —                     |
+| `data-model`             | LLM model name (OpenAI)                             | `"gpt-4o-mini"`       |
+| `data-title`             | Chat window title                                   | `"Chat"`              |
+| `data-placeholder`       | Input placeholder text                              | `"Type a message..."` |
+| `data-greeting`          | Initial greeting message                            | —                     |
+| `data-position`          | `"bottom-right"` or `"bottom-left"`                 | `"bottom-right"`      |
+| `data-primary-color`     | Hex color for theming                               | `"#2563eb"`           |
+| `data-width`             | Panel width in pixels                               | `380`                 |
+| `data-height`            | Panel height in pixels                              | `600`                 |
+| `data-z-index`           | CSS z-index                                         | `2147483000`          |
+| `data-persist-session`   | Resume verified history after reload                | `true`                |
+| `data-session-max-age`   | Local inactivity lifetime in seconds                | `86400`               |
+| `data-visitor-tracking`  | Reuse an anonymous visitor ID for trace grouping    | `false`               |
+| `data-visitor-max-age`   | Anonymous visitor lifetime in seconds (max 90 days) | `7776000`             |
+| `data-stylesheet-url`    | Theme CSS loaded inside Shadow DOM                  | —                     |
+| `data-new-session-label` | Accessible new-session label                        | `"New conversation"`  |
+| `data-feedback-label`    | Feedback prompt                                     | `"Was this helpful?"` |
 
 ## Development
 
