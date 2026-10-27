@@ -1038,7 +1038,7 @@ describe("PromptRails ecommerce widget", () => {
       await vi.advanceTimersByTimeAsync(120_000);
       await sending;
 
-      expect(listMessages).toHaveBeenCalledTimes(30);
+      expect(listMessages).toHaveBeenCalledTimes(29);
       expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
     } finally {
       vi.useRealTimers();
@@ -1070,6 +1070,114 @@ describe("PromptRails ecommerce widget", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("does not render a failed run's error row as the answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      const listMessages = vi.fn().mockResolvedValue([
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error processing your request.",
+          executionId: "exec-1",
+          metadata: { error: true },
+        },
+      ]);
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+          throw Object.assign(new Error("Failed to fetch"), { status: 0 });
+        },
+        listMessages,
+      };
+
+      const sending = widget.send("Elbise");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await sending;
+
+      const answer = widget.messages.at(-1);
+      expect(answer.text).toContain("ulaşamıyoruz");
+      expect(answer.text).not.toContain("encountered an error");
+      // Stopped as soon as the error row appeared, not after the full window.
+      expect(listMessages).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores a stale cached option when adding a pinned product", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [
+          {
+            id: "p-pinned",
+            slug: "dress",
+            name: "Dress",
+            category: "Dresses",
+            price: 100,
+            sizes: ["38"],
+            colors: ["Black"],
+            selectedSize: "38",
+            selectedColor: "Black",
+            variantId: "v-38",
+            canAdd: true,
+          },
+        ],
+      },
+    ];
+    // A size/colour the shopper picked for this id in an earlier render/session.
+    widget.selectedVariants = { "p-pinned": { size: "36", color: "Red" } };
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:cart-add", listener);
+
+    widget.paintMessages();
+    widget.shadowRoot.querySelector("[data-add]").click();
+
+    expect(listener.mock.calls[0][0].detail).toMatchObject({
+      productId: "p-pinned",
+      variantId: "v-38",
+      size: "38",
+      color: "Black",
+    });
+  });
+
+  it("keeps the full option list for a product with only a default variant id", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const product = widget.normalizeAnswer({
+      output: { message: "Pick" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "p",
+            kind: "product",
+            attributes: {
+              name: "Dress",
+              price: 100,
+              // A default variant id, NOT a selected one: it must not pin options.
+              variant_id: 7,
+              sizes: ["36", "38", "40"],
+              colors: ["Black", "Red"],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    }).products[0];
+
+    expect(product.sizes).toEqual(["36", "38", "40"]);
+    expect(product.colors).toEqual(["Black", "Red"]);
   });
 
   it("shows customer-safe tool progress and completion copy", async () => {

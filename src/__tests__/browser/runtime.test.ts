@@ -167,4 +167,52 @@ describe("browser chat runtime", () => {
       retryable: true,
     } satisfies Partial<BrowserChatError>);
   });
+
+  it("reads the last page for the newest turn and the first page for restore", async () => {
+    const pages: Record<string, unknown> = {
+      "1": {
+        data: [{ id: "m1", role: "assistant", content: "oldest", metadata: {} }],
+        meta: { total: 60, page: 1, limit: 50, pages: 2 },
+      },
+      "2": {
+        data: [
+          {
+            id: "m60",
+            role: "assistant",
+            content: JSON.stringify({ message: "newest" }),
+            metadata: { execution_id: "exec-9" },
+          },
+        ],
+        meta: { total: 60, page: 2, limit: 50, pages: 2 },
+      },
+    };
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/token")) return json({ data: { access_token: "token", expires_in: 900 } });
+      if (url.endsWith("/sessions")) {
+        return json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN } });
+      }
+      if (url.includes("/messages") && !url.includes("/stream")) {
+        const page = new URL(url, "https://x").searchParams.get("page") ?? "1";
+        return json(pages[page]);
+      }
+      return stream();
+    });
+    const runtime = createBrowserChatRuntime({ apiKey: "browser", agentId: "agent" });
+    await collect(runtime.sendMessageStream({ content: "hi" })); // establish the session
+
+    // tail: the newest turn lives on the last page, so recovery must read it.
+    const tail = await runtime.listMessages({ tail: true });
+    expect(tail.find((m) => m.executionId === "exec-9")).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(
+        ([u]) => String(u).includes("/messages") && String(u).includes("page=2"),
+      ),
+    ).toBe(true);
+
+    // no tail (restore): only the first page is read, never page 2.
+    fetchMock.mockClear();
+    const head = await runtime.listMessages();
+    expect(head.find((m) => m.content === "oldest")).toBeTruthy();
+    expect(fetchMock.mock.calls.every(([u]) => !String(u).includes("page=2"))).toBe(true);
+  });
 });

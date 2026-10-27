@@ -378,7 +378,10 @@ import { normalizeChatUI } from "../ui/protocol";
     // Without per-option variants the cart can only ever add the one variant the
     // answer selected, so offering the other sizes and colours would put an
     // option in the cart that the shopper did not pick.
-    const pinned = !variants.length && Boolean(variantId);
+    // Only a *selected* variant pins the options. A bare default variant_id must
+    // not collapse a product's full size/colour list to a single choice.
+    const pinned =
+      !variants.length && (attributes.selected_variant_id ?? attributes.selectedVariantId);
     const pinnedOptions = (options, selected) =>
       selected ? [selected] : options.length === 1 ? options : [];
     return {
@@ -1212,6 +1215,16 @@ import { normalizeChatUI } from "../ui/protocol";
         return;
       const selected = this.selectedVariants?.[product.id] || {};
       const variant = this.resolvedVariant(product, selected);
+      // Clamp the cached pick to an option this product actually offers. A pinned
+      // product (its size list collapsed to the one selected variant) must not
+      // emit a stale size left in the cache by an earlier render of the same id;
+      // the drawer clamps the same way (renderCartDrawer), the direct add did not.
+      const size = product.sizes?.includes(selected.size)
+        ? selected.size
+        : product.selectedSize || product.sizes?.[0];
+      const color = product.colors?.includes(selected.color)
+        ? selected.color
+        : product.selectedColor || product.colors?.[0];
       button.disabled = true;
       button.dataset.idleLabel = button.textContent || this.labels.add;
       button.textContent = this.labels.adding;
@@ -1220,8 +1233,8 @@ import { normalizeChatUI } from "../ui/protocol";
         variantId: variant?.id || (!product.variants?.length ? product.variantId : undefined),
         slug: product.slug,
         ...(product.name ? { name: product.name } : {}),
-        size: selected.size || product.selectedSize || product.sizes?.[0],
-        color: selected.color || product.selectedColor || product.colors?.[0],
+        size,
+        color,
         quantity: Number(selected.quantity) || 1,
         // Its promptrails:cart-intent already reported the shopper's click.
         ...(viaDrawer ? { viaDrawer: true } : {}),
@@ -1334,6 +1347,7 @@ import { normalizeChatUI } from "../ui/protocol";
     async startNewSession() {
       this.messages = [];
       this.recommendedProducts = new Set();
+      this.selectedVariants = {};
       try {
         localStorage.removeItem(this.storageKey);
         sessionStorage.removeItem(this.storageKey);
@@ -1478,6 +1492,7 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     async send(content) {
+      if (this.busy) return;
       this.toggle(true);
       if (!navigator.onLine) {
         this.emit("promptrails:error", { code: "offline" });
@@ -1547,6 +1562,11 @@ import { normalizeChatUI } from "../ui/protocol";
           await this.runtime.newSession();
           return this.askPromptRails(customerMessage);
         }
+        // The stream delivered a complete answer before it threw (a late
+        // transport error): use it instead of polling for what we already have.
+        if (finalOutput !== undefined) {
+          return this.normalizeAnswer({ output: finalOutput, ui, executionId });
+        }
         const recovered =
           executionId && !agentFailed ? await this.recoverAnswer(executionId, ui) : null;
         if (recovered) return recovered;
@@ -1561,19 +1581,32 @@ import { normalizeChatUI } from "../ui/protocol";
     async recoverAnswer(executionId, ui) {
       const deadline = Date.now() + ANSWER_RECOVERY_WINDOW_MS;
       const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-      while (Date.now() < deadline) {
+      // Stop one poll short of the deadline so the last request always has a
+      // non-zero window to resolve in rather than racing an expired timer.
+      while (Date.now() + ANSWER_RECOVERY_POLL_MS < deadline) {
         await wait(ANSWER_RECOVERY_POLL_MS);
+        let rows;
         try {
-          const rows = await Promise.race([
-            this.runtime.listMessages(),
-            wait(Math.max(0, deadline - Date.now())).then(() => []),
+          rows = await Promise.race([
+            this.runtime.listMessages({ tail: true }),
+            wait(Math.max(0, deadline - Date.now())).then(() => null),
           ]);
-          const row = rows.find(
-            (message) => message.role === "assistant" && message.executionId === executionId,
-          );
-          if (row) return this.normalizeAnswer({ output: row.content, ui, executionId });
-        } catch {
-          /* still offline; try again */
+        } catch (error) {
+          // A revoked or expired session will never return the row; stop.
+          if (error?.status === 403 || error?.status === 404) return null;
+          continue; // transient (offline, 5xx); try again
+        }
+        if (!rows) break; // null = hit the deadline mid-request
+        const row = Array.isArray(rows)
+          ? rows.find(
+              (message) => message.role === "assistant" && message.executionId === executionId,
+            )
+          : null;
+        if (row) {
+          // A failed run's error row must surface as the localised error with a
+          // retry, not be rendered as the answer.
+          if (row.metadata?.error) return null;
+          return this.normalizeAnswer({ output: row.content, ui, executionId });
         }
       }
       return null;

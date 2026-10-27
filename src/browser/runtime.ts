@@ -80,6 +80,7 @@ interface ApiEnvelope<T> {
   data?: T;
   error?: string | { message?: string };
   message?: string;
+  meta?: { total?: number; page?: number; limit?: number; pages?: number };
 }
 
 interface SessionBroadcast {
@@ -103,7 +104,7 @@ export interface BrowserChatRuntime {
   readonly sessionId: string;
   createSession(title?: string): Promise<BrowserSessionResponse>;
   hydrate(): Promise<Message[]>;
-  listMessages(): Promise<Message[]>;
+  listMessages(options?: { tail?: boolean }): Promise<Message[]>;
   sendMessageStream(
     message: BrowserRuntimeMessage,
     signal?: AbortSignal,
@@ -591,15 +592,21 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
       }
     },
 
-    async listMessages(): Promise<Message[]> {
+    async listMessages(options = {}): Promise<Message[]> {
       if (!sessionId || !resumeToken) return [];
-      const payload = await request<BrowserMessageResponse[]>(
-        `/browser/chat/sessions/${encodeURIComponent(sessionId)}/messages?limit=50`,
-      );
+      const base = `/browser/chat/sessions/${encodeURIComponent(sessionId)}/messages?limit=50`;
+      const first = await request<BrowserMessageResponse[]>(base);
       persist();
-      return (Array.isArray(payload.data) ? payload.data : [])
-        .map(messageFromApi)
-        .filter((message): message is Message => message !== null);
+      let rows = Array.isArray(first.data) ? first.data : [];
+      // The backend returns messages oldest-first, 50 per page, so the newest
+      // turn (what answer recovery needs) is on the LAST page once a session has
+      // more than one page. Session restore (no tail) keeps the first page.
+      const pages = Math.ceil((Number(first.meta?.total) || 0) / 50);
+      if (options.tail && pages > 1) {
+        const last = await request<BrowserMessageResponse[]>(`${base}&page=${pages}`);
+        if (Array.isArray(last.data)) rows = last.data;
+      }
+      return rows.map(messageFromApi).filter((message): message is Message => message !== null);
     },
 
     async *sendMessageStream(message, signal): AsyncGenerator<StreamEvent> {
