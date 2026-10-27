@@ -603,10 +603,14 @@
       margin-bottom: 12px;
     }
 
+    .comparison-table { overflow-x: auto; }
+    .comparison-table table { min-width: 720px; }
+
     @media (max-width: 768px) {
       .features-grid { grid-template-columns: 1fr; }
       .form-grid { grid-template-columns: 1fr; }
-      .nav-links { display: none; }
+      .nav-links { gap: 0; }
+      .nav-links a:not(.nav-github) { display: none; }
       .hero { padding: 60px 16px 48px; }
       .cta-card { padding: 40px 24px; }
     }
@@ -685,7 +689,7 @@
         <a href="#usage">Usage</a>
         <a href="#demo">Demo</a>
         <a href="#comparison">Comparison</a>
-        <a href="https://github.com/promptrails/ai-chat" class="nav-github" target="_blank">
+        <a href="https://github.com/promptrails/ai-chat" class="nav-github" target="_blank" rel="noopener noreferrer">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           GitHub
         </a>
@@ -695,7 +699,7 @@
 
   <!-- Hero -->
   <section class="hero">
-    <span class="hero-badge">Open source · v0.6</span>
+    <span class="hero-badge">Open source · v<span data-package-version>latest</span></span>
     <h1>Agent-ready chat,<br /><span class="gradient-text">for every interface.</span></h1>
     <p>A browser-safe runtime, headless APIs, and an ecommerce renderer for shipping secure, brandable agent conversations on any site.</p>
     <div class="hero-actions">
@@ -704,8 +708,8 @@
     </div>
     <div class="install-cmd">
       <span class="dollar">$</span>
-      <span>npm install @promptrails/ai-chat@0.7.5</span>
-      <button onclick="navigator.clipboard.writeText('npm install @promptrails/ai-chat')" title="Copy">
+      <span>npm install @promptrails/ai-chat@<span data-package-version>latest</span></span>
+      <button onclick="copyInstallCommand(this)" title="Copy install command" aria-label="Copy install command">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
     </div>
@@ -767,9 +771,9 @@
       <h2 class="section-title">Pick Your Layer</h2>
       <p class="section-subtitle">Same package, three integration levels.</p>
       <div class="layer-tabs">
-        <button class="layer-tab active" onclick="showLayer('script')">Script Tag</button>
-        <button class="layer-tab" onclick="showLayer('component')">React Component</button>
-        <button class="layer-tab" onclick="showLayer('hooks')">React Hooks</button>
+        <button class="layer-tab active" onclick="showLayer('script', this)">Script Tag</button>
+        <button class="layer-tab" onclick="showLayer('component', this)">React Component</button>
+        <button class="layer-tab" onclick="showLayer('hooks', this)">React Hooks</button>
       </div>
 
       <!-- Script Tag -->
@@ -782,7 +786,7 @@
           </div>
           <pre id="script-code"><span class="code-comment">&lt;!-- Add to any website — no React needed --&gt;</span>
 <span class="code-tag">&lt;script</span>
-  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.5/dist/widget.global.js"</span>
+  <span class="code-attr">src</span>=<span class="code-string">"https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@<span data-package-version>latest</span>/dist/widget.global.js"</span>
   <span class="code-attr">data-provider</span>=<span class="code-string">"promptrails"</span>
   <span class="code-attr">data-api-key</span>=<span class="code-string">"BROWSER_ONLY_CHAT_KEY"</span>
   <span class="code-attr">data-base-url</span>=<span class="code-string">"https://api.promptrails.ai"</span>
@@ -915,12 +919,6 @@
           </select>
         </div>
         <div class="form-group">
-          <label for="demo-provider">Provider</label>
-          <select id="demo-provider" onchange="updateDemo()">
-            <option value="promptrails">PromptRails</option>
-          </select>
-        </div>
-        <div class="form-group">
           <label for="demo-position">Position</label>
           <select id="demo-position" onchange="updateDemo()">
             <option value="bottom-right">Bottom Right</option>
@@ -938,6 +936,10 @@
         <div class="form-group" id="agent-id-group">
           <label for="demo-agentid">Agent ID</label>
           <input id="demo-agentid" type="text" placeholder="your_agent_id" oninput="updateDemo()" />
+        </div>
+        <div class="form-group" id="workspace-id-group">
+          <label for="demo-workspaceid">Workspace ID</label>
+          <input id="demo-workspaceid" type="text" placeholder="your_workspace_id" oninput="updateDemo()" />
         </div>
         <div class="form-group">
           <label for="demo-title">Chat Title</label>
@@ -975,6 +977,7 @@
     <div class="comparison-inner">
       <h2 class="section-title">How It Compares</h2>
       <p class="section-subtitle">Full-spectrum AI chat toolkit vs. alternatives.</p>
+      <div class="comparison-table">
       <table>
         <thead>
           <tr>
@@ -1035,6 +1038,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   </section>
 
@@ -1044,11 +1048,11 @@
       <h2>Ready to add AI chat to your app?</h2>
       <p>Start with a browser-only key restricted to chat, exact origins, and an explicit agent allowlist.</p>
       <div class="cta-actions">
-        <a href="https://github.com/promptrails/ai-chat" class="btn btn-primary" target="_blank">
+        <a href="https://github.com/promptrails/ai-chat" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           View on GitHub
         </a>
-        <a href="https://www.npmjs.com/package/@promptrails/ai-chat" class="btn btn-secondary" target="_blank">
+        <a href="https://www.npmjs.com/package/@promptrails/ai-chat" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">
           npm install
         </a>
       </div>
@@ -1058,24 +1062,37 @@
   <!-- Footer -->
   <footer>
     <div class="footer-links">
-      <a href="https://github.com/promptrails/ai-chat" target="_blank">GitHub</a>
-      <a href="https://www.npmjs.com/package/@promptrails/ai-chat" target="_blank">npm</a>
-      <a href="https://promptrails.com" target="_blank">PromptRails</a>
+      <a href="https://github.com/promptrails/ai-chat" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="https://www.npmjs.com/package/@promptrails/ai-chat" target="_blank" rel="noopener noreferrer">npm</a>
+      <a href="https://promptrails.com" target="_blank" rel="noopener noreferrer">PromptRails</a>
       <a href="browser-widget.md">Browser widget guide</a>
       <a href="ecommerce-widget.md">Ecommerce widget guide</a>
       <a href="architecture.md">Architecture</a>
       <a href="api-reference.md">API reference</a>
     </div>
-    <p>MIT License &middot; Built by <a href="https://promptrails.com" target="_blank">PromptRails</a></p>
+    <p>MIT License &middot; Built by <a href="https://promptrails.com" target="_blank" rel="noopener noreferrer">PromptRails</a></p>
   </footer>
 
+  <script src="./assets/version.js"></script>
   <script>
+    const packageVersion = window.PromptRailsAiChatVersion || 'latest';
+    document.querySelectorAll('[data-package-version]').forEach((element) => {
+      element.textContent = packageVersion;
+    });
+
     // Layer tabs
-    function showLayer(id) {
+    function showLayer(id, trigger) {
       document.querySelectorAll('.layer-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.layer-tab').forEach(el => el.classList.remove('active'));
       document.getElementById('layer-' + id).classList.add('active');
-      event.target.classList.add('active');
+      trigger.classList.add('active');
+    }
+
+    async function copyInstallCommand(button) {
+      await navigator.clipboard.writeText(`npm install @promptrails/ai-chat@${packageVersion}`);
+      const original = button.title;
+      button.title = 'Copied!';
+      setTimeout(() => { button.title = original; }, 1500);
     }
 
     // Copy code
@@ -1092,30 +1109,25 @@
     // Demo config
     function updateDemo() {
       const kind = document.getElementById('demo-kind').value;
-      const provider = document.getElementById('demo-provider').value;
+      const provider = 'promptrails';
       const position = document.getElementById('demo-position').value;
       const apiKey = document.getElementById('demo-apikey').value || 'BROWSER_ONLY_CHAT_KEY';
       const baseUrl = document.getElementById('demo-baseurl').value || 'https://api.promptrails.ai';
       const agentId = document.getElementById('demo-agentid').value || 'YOUR_AGENT_ID';
+      const workspaceId = document.getElementById('demo-workspaceid').value || 'YOUR_WORKSPACE_ID';
       const title = document.getElementById('demo-title').value || 'AI Assistant';
       const color = document.getElementById('demo-color').value;
       const greeting = document.getElementById('demo-greeting').value;
 
-      document.getElementById('demo-provider').closest('.form-group').style.display = kind === 'generic' ? '' : 'none';
-      const isPromptRails = provider === 'promptrails';
-      document.getElementById('agent-id-group').style.display = isPromptRails ? '' : 'none';
+      document.getElementById('agent-id-group').style.display = '';
+      document.getElementById('workspace-id-group').style.display = '';
       document.getElementById('baseurl-group').style.display = '';
 
       let attrs = `  data-provider="${provider}"
-  data-api-key="${apiKey}"`;
-
-      if (!isPromptRails) {
-        attrs += `\n  data-base-url="${baseUrl}"`;
-      }
-
-      if (isPromptRails) {
-        attrs += `\n  data-agent-id="${agentId}"`;
-      }
+  data-api-key="${apiKey}"
+  data-base-url="${baseUrl}"
+  data-agent-id="${agentId}"
+  data-workspace-id="${workspaceId}"`;
 
       attrs += `\n  data-title="${title}"
   data-position="${position}"
@@ -1125,18 +1137,19 @@
         attrs += `\n  data-greeting="${greeting}"`;
       }
 
-      const code = kind === 'ecommerce' ? `<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.5/dist/ecommerce.global.js" defer><\/script>
+      const code = kind === 'ecommerce' ? `<script src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@${packageVersion}/dist/ecommerce.global.js" defer><\/script>
 
 <promptrails-shop-assistant
   api-url="${baseUrl}"
   api-key="${apiKey}"
   agent-id="${agentId}"
+  workspace-id="${workspaceId}"
   catalog-url="/api/catalog"
   brand="Acme"
   locale="tr-TR"
   persist-session="true"
 ><\/promptrails-shop-assistant>` : `<script
-  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@0.7.5/dist/widget.global.js"
+  src="https://cdn.jsdelivr.net/npm/@promptrails/ai-chat@${packageVersion}/dist/widget.global.js"
 ${attrs}
 ><\/script>`;
 
@@ -1150,7 +1163,7 @@ ${attrs}
       document.querySelector('promptrails-shop-assistant')?.remove();
 
       const kind = document.getElementById('demo-kind').value;
-      const provider = document.getElementById('demo-provider').value;
+      const provider = 'promptrails';
       const position = document.getElementById('demo-position').value;
       const title = document.getElementById('demo-title').value || 'AI Assistant';
       const color = document.getElementById('demo-color').value;
@@ -1158,6 +1171,7 @@ ${attrs}
       const apiKey = document.getElementById('demo-apikey').value;
       const baseUrl = document.getElementById('demo-baseurl').value;
       const agentId = document.getElementById('demo-agentid').value;
+      const workspaceId = document.getElementById('demo-workspaceid').value;
 
       if (kind === 'ecommerce') {
         const shop = document.createElement('promptrails-shop-assistant');
@@ -1168,18 +1182,19 @@ ${attrs}
         shop.setAttribute('locale', 'en-US');
         shop.setAttribute('accent-color', color);
         shop.setAttribute('quick-prompts', '["Show new arrivals","Dresses under $200","Track my order"]');
-        if (apiKey && agentId) {
+        if (apiKey && agentId && workspaceId) {
           shop.setAttribute('api-url', baseUrl || 'https://api.promptrails.ai');
           shop.setAttribute('api-key', apiKey);
           shop.setAttribute('agent-id', agentId);
+          shop.setAttribute('workspace-id', workspaceId);
         }
         document.body.appendChild(shop);
         shop.open();
         return;
       }
 
-      if (!apiKey || !agentId) {
-        alert('The generic live demo needs a browser-only key and an allowed agent ID. The ecommerce demo works without credentials.');
+      if (!apiKey || !agentId || !workspaceId) {
+        alert('The generic live demo needs a browser-only key, an allowed agent ID, and a workspace ID. The ecommerce demo works without credentials.');
         return;
       }
 
@@ -1194,6 +1209,7 @@ ${attrs}
       if (apiKey) config.provider.apiKey = apiKey;
       if (baseUrl) config.provider.baseUrl = baseUrl;
       if (agentId) config.provider.agentId = agentId;
+      if (workspaceId) config.workspaceId = workspaceId;
 
       if (typeof PromptRailsChat !== 'undefined') {
         PromptRailsChat.destroy();

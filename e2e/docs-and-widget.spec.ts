@@ -1,4 +1,9 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+const packageVersion = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+).version;
 
 test("corporate docs launches the credential-free ecommerce demo", async ({ page }) => {
   await page.goto("/#demo");
@@ -35,4 +40,25 @@ test("widget remains inside the mobile viewport", async ({ page }) => {
       .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
     expect(composerFontSize).toBeGreaterThanOrEqual(16);
   }
+});
+
+test("docs show the package version and generate a complete browser snippet", async ({ page }) => {
+  await page.goto("/#usage");
+  await expect(page.getByText(`Open source · v${packageVersion}`)).toBeVisible();
+  await expect(page.getByText(`npm install @promptrails/ai-chat@${packageVersion}`)).toBeVisible();
+
+  await page.getByRole("button", { name: "React Component" }).click();
+  await expect(page.locator("#layer-component")).toBeVisible();
+  await page.getByRole("button", { name: "Script Tag" }).click();
+  await expect(page.locator("#layer-script")).toBeVisible();
+
+  await page.getByLabel("Experience").selectOption("generic");
+  await page.getByLabel("Browser-only Chat Key").fill("browser-key");
+  await page.getByLabel("Agent ID").fill("agent-id");
+  await page.getByLabel("Workspace ID").fill("workspace-id");
+  const generated = page.locator("#demo-code");
+  await expect(generated).toContainText(`@promptrails/ai-chat@${packageVersion}`);
+  await expect(generated).toContainText('data-base-url="https://api.promptrails.ai"');
+  await expect(generated).toContainText('data-agent-id="agent-id"');
+  await expect(generated).toContainText('data-workspace-id="workspace-id"');
 });
