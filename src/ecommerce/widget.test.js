@@ -977,6 +977,10 @@ describe("PromptRails ecommerce widget", () => {
       widget.runtime = {
         async *sendMessageStream() {
           yield { type: "execution", executionId: "exec-1" };
+          yield {
+            type: "ui",
+            ui: { version: "1", suggestions: [{ label: "Başka renk", value: "Başka renk" }] },
+          };
           throw Object.assign(new Error("Failed to fetch"), { status: 0 });
         },
         listMessages,
@@ -990,6 +994,8 @@ describe("PromptRails ecommerce widget", () => {
       const answer = widget.messages.at(-1);
       expect(answer.text).toBe("Bu elbiseyi öneriyorum.");
       expect(answer.executionId).toBe("exec-1");
+      // The UI the stream delivered before it dropped is kept.
+      expect(answer.quickReplies).toEqual([{ label: "Başka renk", value: "Başka renk" }]);
     } finally {
       vi.useRealTimers();
     }
@@ -1033,6 +1039,33 @@ describe("PromptRails ecommerce widget", () => {
       await sending;
 
       expect(listMessages).toHaveBeenCalledTimes(30);
+      expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops recovering at the deadline even when a request stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+        },
+        listMessages: vi.fn(() => new Promise(() => {})),
+      };
+
+      let settled = false;
+      const sending = widget.send("Elbise").then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(95_000);
+      await sending;
+
+      expect(settled).toBe(true);
       expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
     } finally {
       vi.useRealTimers();

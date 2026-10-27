@@ -1548,7 +1548,7 @@ import { normalizeChatUI } from "../ui/protocol";
           return this.askPromptRails(customerMessage);
         }
         const recovered =
-          executionId && !agentFailed ? await this.recoverAnswer(executionId) : null;
+          executionId && !agentFailed ? await this.recoverAnswer(executionId, ui) : null;
         if (recovered) return recovered;
         throw error;
       }
@@ -1557,15 +1557,21 @@ import { normalizeChatUI } from "../ui/protocol";
     // A dropped stream does not stop the run: the execution carries on and its
     // answer is saved to the chat session, so read it back from there before
     // telling the shopper the assistant is unreachable.
-    async recoverAnswer(executionId) {
+    // A request that stalls instead of failing is cut off at the deadline too.
+    async recoverAnswer(executionId, ui) {
       const deadline = Date.now() + ANSWER_RECOVERY_WINDOW_MS;
+      const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
       while (Date.now() < deadline) {
-        await new Promise((resolve) => window.setTimeout(resolve, ANSWER_RECOVERY_POLL_MS));
+        await wait(ANSWER_RECOVERY_POLL_MS);
         try {
-          const row = (await this.runtime.listMessages()).find(
+          const rows = await Promise.race([
+            this.runtime.listMessages(),
+            wait(Math.max(0, deadline - Date.now())).then(() => []),
+          ]);
+          const row = rows.find(
             (message) => message.role === "assistant" && message.executionId === executionId,
           );
-          if (row) return this.normalizeAnswer({ output: row.content, executionId });
+          if (row) return this.normalizeAnswer({ output: row.content, ui, executionId });
         } catch {
           /* still offline; try again */
         }
