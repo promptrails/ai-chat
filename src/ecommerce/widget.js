@@ -13,6 +13,8 @@ import { normalizeChatUI } from "../ui/protocol";
   const MAX_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
   const DEFAULT_CONSENT_MAX_AGE_DAYS = 180;
   const MAX_CONSENT_MAX_AGE_DAYS = 365;
+  const ANSWER_RECOVERY_POLL_MS = 3000;
+  const ANSWER_RECOVERY_WINDOW_MS = 90 * 1000;
   const CHAT_ICON =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5Z"/></svg>';
   const THUMB_UP_ICON =
@@ -1522,12 +1524,16 @@ import { normalizeChatUI } from "../ui/protocol";
       let finalOutput;
       let ui;
       let executionId = "";
+      let agentFailed = false;
       try {
         for await (const event of this.runtime.sendMessageStream({
           content: customerMessage,
           context,
         })) {
-          if (event.type === "error") throw new Error(event.error || "Agent could not respond.");
+          if (event.type === "error") {
+            agentFailed = true;
+            throw new Error(event.error || "Agent could not respond.");
+          }
           if (event.type === "execution") executionId = event.executionId || "";
           if (event.type === "tool_start") this.startToolActivity(event.toolCallId, event.toolName);
           if (event.type === "tool_end") this.endToolActivity(event.toolCallId, event.toolName);
@@ -1537,10 +1543,34 @@ import { normalizeChatUI } from "../ui/protocol";
         if (finalOutput === undefined) throw new Error("Agent response did not complete.");
         return this.normalizeAnswer({ output: finalOutput, ui, executionId });
       } catch (error) {
-        if (error?.status !== 403) throw error;
-        await this.runtime.newSession();
-        return this.askPromptRails(customerMessage);
+        if (error?.status === 403) {
+          await this.runtime.newSession();
+          return this.askPromptRails(customerMessage);
+        }
+        const recovered =
+          executionId && !agentFailed ? await this.recoverAnswer(executionId) : null;
+        if (recovered) return recovered;
+        throw error;
       }
+    }
+
+    // A dropped stream does not stop the run: the execution carries on and its
+    // answer is saved to the chat session, so read it back from there before
+    // telling the shopper the assistant is unreachable.
+    async recoverAnswer(executionId) {
+      const deadline = Date.now() + ANSWER_RECOVERY_WINDOW_MS;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, ANSWER_RECOVERY_POLL_MS));
+        try {
+          const row = (await this.runtime.listMessages()).find(
+            (message) => message.role === "assistant" && message.executionId === executionId,
+          );
+          if (row) return this.normalizeAnswer({ output: row.content, executionId });
+        } catch {
+          /* still offline; try again */
+        }
+      }
+      return null;
     }
 
     normalizeAnswer(result) {

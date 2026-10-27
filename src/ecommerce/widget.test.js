@@ -956,6 +956,89 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.textContent).not.toContain("productId");
   });
 
+  it("recovers a completed answer from the session when the stream drops", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      const listMessages = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce([{ role: "user", content: "Elbise", executionId: "exec-1" }])
+        .mockResolvedValue([
+          { role: "user", content: "Elbise", executionId: "exec-1" },
+          {
+            role: "assistant",
+            content: JSON.stringify({ message: "Bu elbiseyi öneriyorum." }),
+            executionId: "exec-1",
+          },
+        ]);
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+          throw Object.assign(new Error("Failed to fetch"), { status: 0 });
+        },
+        listMessages,
+      };
+
+      const sending = widget.send("Elbise");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await sending;
+
+      expect(listMessages).toHaveBeenCalledTimes(3);
+      const answer = widget.messages.at(-1);
+      expect(answer.text).toBe("Bu elbiseyi öneriyorum.");
+      expect(answer.executionId).toBe("exec-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not wait for an answer when the agent reported an error", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.ready = true;
+    const listMessages = vi.fn();
+    widget.runtime = {
+      async *sendMessageStream() {
+        yield { type: "execution", executionId: "exec-1" };
+        yield { type: "error", error: "Agent could not respond." };
+      },
+      listMessages,
+    };
+
+    await widget.send("Elbise");
+
+    expect(listMessages).not.toHaveBeenCalled();
+    expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
+  });
+
+  it("gives up recovering an answer that never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      const listMessages = vi.fn().mockResolvedValue([]);
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+        },
+        listMessages,
+      };
+
+      const sending = widget.send("Elbise");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await sending;
+
+      expect(listMessages).toHaveBeenCalledTimes(30);
+      expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows customer-safe tool progress and completion copy", async () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute(
