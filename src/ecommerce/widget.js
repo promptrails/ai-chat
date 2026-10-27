@@ -373,6 +373,12 @@ import { normalizeChatUI } from "../ui/protocol";
       variantCompareAt,
     );
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
+    // Without per-option variants the cart can only ever add the one variant the
+    // answer selected, so offering the other sizes and colours would put an
+    // option in the cart that the shopper did not pick.
+    const pinned = !variants.length && Boolean(variantId);
+    const pinnedOptions = (options, selected) =>
+      selected ? [selected] : options.length === 1 ? options : [];
     return {
       id,
       slug: boundedText(attributes.slug, 200) || id,
@@ -385,8 +391,8 @@ import { normalizeChatUI } from "../ui/protocol";
       imageUrl: firstImageUrl(
         attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images,
       ),
-      sizes,
-      colors,
+      sizes: pinned ? pinnedOptions(sizes, selectedSize) : sizes,
+      colors: pinned ? pinnedOptions(colors, selectedColor) : colors,
       selectedSize,
       selectedColor,
       variantId:

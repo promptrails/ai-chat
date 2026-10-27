@@ -644,6 +644,53 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
   });
 
+  it("offers only the selected options when the response has no per-option variants", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const attributes = {
+      name: "İpek Elbise",
+      price: 3499,
+      selected_variant_id: 4696,
+      sizes: ["36", "38", "40"],
+      colors: ["Siyah", "Kırmızı"],
+      selected_size: "38",
+      selected_color: "Siyah",
+    };
+    const answer = (overrides) =>
+      widget.normalizeAnswer({
+        output: { message: "Bir seçenek buldum." },
+        ui: {
+          version: "1",
+          resources: [
+            { id: "ticimax-42", kind: "product", attributes: { ...attributes, ...overrides } },
+          ],
+          actions: [{ kind: "cart.add", resource_id: "ticimax-42", payload: {} }],
+          suggestions: [],
+        },
+      }).products[0];
+
+    expect(answer()).toMatchObject({
+      variantId: "4696",
+      sizes: ["38"],
+      colors: ["Siyah"],
+    });
+    // A selected variant whose options are not named cannot be shown as a
+    // choice, but a single listed option is still the one being added.
+    expect(
+      answer({ selected_size: undefined, colors: ["Siyah"], selected_color: undefined }),
+    ).toMatchObject({ sizes: [], colors: ["Siyah"] });
+    // Per-option variants keep the full choice.
+    expect(
+      answer({
+        variants: [
+          { id: "v-36", size: "36", color: "Siyah" },
+          { id: "v-38", size: "38", color: "Siyah" },
+        ],
+      }).sizes,
+    ).toEqual(["36", "38"]);
+  });
+
   it("preselects validated response variants and uses them for cart events", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
