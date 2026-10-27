@@ -13,6 +13,8 @@ import { normalizeChatUI } from "../ui/protocol";
   const MAX_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
   const DEFAULT_CONSENT_MAX_AGE_DAYS = 180;
   const MAX_CONSENT_MAX_AGE_DAYS = 365;
+  const ANSWER_RECOVERY_POLL_MS = 3000;
+  const ANSWER_RECOVERY_WINDOW_MS = 90 * 1000;
   const CHAT_ICON =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5Z"/></svg>';
   const THUMB_UP_ICON =
@@ -373,6 +375,15 @@ import { normalizeChatUI } from "../ui/protocol";
       variantCompareAt,
     );
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
+    // Without per-option variants the cart can only ever add the one variant the
+    // answer selected, so offering the other sizes and colours would put an
+    // option in the cart that the shopper did not pick.
+    // Only a *selected* variant pins the options. A bare default variant_id must
+    // not collapse a product's full size/colour list to a single choice.
+    const pinned =
+      !variants.length && (attributes.selected_variant_id ?? attributes.selectedVariantId);
+    const pinnedOptions = (options, selected) =>
+      selected ? [selected] : options.length === 1 ? options : [];
     return {
       id,
       slug: boundedText(attributes.slug, 200) || id,
@@ -385,8 +396,8 @@ import { normalizeChatUI } from "../ui/protocol";
       imageUrl: firstImageUrl(
         attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images,
       ),
-      sizes,
-      colors,
+      sizes: pinned ? pinnedOptions(sizes, selectedSize) : sizes,
+      colors: pinned ? pinnedOptions(colors, selectedColor) : colors,
       selectedSize,
       selectedColor,
       variantId:
@@ -1204,6 +1215,16 @@ import { normalizeChatUI } from "../ui/protocol";
         return;
       const selected = this.selectedVariants?.[product.id] || {};
       const variant = this.resolvedVariant(product, selected);
+      // Clamp the cached pick to an option this product actually offers. A pinned
+      // product (its size list collapsed to the one selected variant) must not
+      // emit a stale size left in the cache by an earlier render of the same id;
+      // the drawer clamps the same way (renderCartDrawer), the direct add did not.
+      const size = product.sizes?.includes(selected.size)
+        ? selected.size
+        : product.selectedSize || product.sizes?.[0];
+      const color = product.colors?.includes(selected.color)
+        ? selected.color
+        : product.selectedColor || product.colors?.[0];
       button.disabled = true;
       button.dataset.idleLabel = button.textContent || this.labels.add;
       button.textContent = this.labels.adding;
@@ -1212,8 +1233,8 @@ import { normalizeChatUI } from "../ui/protocol";
         variantId: variant?.id || (!product.variants?.length ? product.variantId : undefined),
         slug: product.slug,
         ...(product.name ? { name: product.name } : {}),
-        size: selected.size || product.selectedSize || product.sizes?.[0],
-        color: selected.color || product.selectedColor || product.colors?.[0],
+        size,
+        color,
         quantity: Number(selected.quantity) || 1,
         // Its promptrails:cart-intent already reported the shopper's click.
         ...(viaDrawer ? { viaDrawer: true } : {}),
@@ -1326,6 +1347,7 @@ import { normalizeChatUI } from "../ui/protocol";
     async startNewSession() {
       this.messages = [];
       this.recommendedProducts = new Set();
+      this.selectedVariants = {};
       try {
         localStorage.removeItem(this.storageKey);
         sessionStorage.removeItem(this.storageKey);
@@ -1470,6 +1492,7 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     async send(content) {
+      if (this.busy) return;
       this.toggle(true);
       if (!navigator.onLine) {
         this.emit("promptrails:error", { code: "offline" });
@@ -1516,12 +1539,16 @@ import { normalizeChatUI } from "../ui/protocol";
       let finalOutput;
       let ui;
       let executionId = "";
+      let agentFailed = false;
       try {
         for await (const event of this.runtime.sendMessageStream({
           content: customerMessage,
           context,
         })) {
-          if (event.type === "error") throw new Error(event.error || "Agent could not respond.");
+          if (event.type === "error") {
+            agentFailed = true;
+            throw new Error(event.error || "Agent could not respond.");
+          }
           if (event.type === "execution") executionId = event.executionId || "";
           if (event.type === "tool_start") this.startToolActivity(event.toolCallId, event.toolName);
           if (event.type === "tool_end") this.endToolActivity(event.toolCallId, event.toolName);
@@ -1531,10 +1558,58 @@ import { normalizeChatUI } from "../ui/protocol";
         if (finalOutput === undefined) throw new Error("Agent response did not complete.");
         return this.normalizeAnswer({ output: finalOutput, ui, executionId });
       } catch (error) {
-        if (error?.status !== 403) throw error;
-        await this.runtime.newSession();
-        return this.askPromptRails(customerMessage);
+        if (error?.status === 403) {
+          await this.runtime.newSession();
+          return this.askPromptRails(customerMessage);
+        }
+        // The stream delivered a complete answer before it threw (a late
+        // transport error): use it instead of polling for what we already have.
+        if (finalOutput !== undefined) {
+          return this.normalizeAnswer({ output: finalOutput, ui, executionId });
+        }
+        const recovered =
+          executionId && !agentFailed ? await this.recoverAnswer(executionId, ui) : null;
+        if (recovered) return recovered;
+        throw error;
       }
+    }
+
+    // A dropped stream does not stop the run: the execution carries on and its
+    // answer is saved to the chat session, so read it back from there before
+    // telling the shopper the assistant is unreachable.
+    // A request that stalls instead of failing is cut off at the deadline too.
+    async recoverAnswer(executionId, ui) {
+      const deadline = Date.now() + ANSWER_RECOVERY_WINDOW_MS;
+      const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      // Stop one poll short of the deadline so the last request always has a
+      // non-zero window to resolve in rather than racing an expired timer.
+      while (Date.now() + ANSWER_RECOVERY_POLL_MS < deadline) {
+        await wait(ANSWER_RECOVERY_POLL_MS);
+        let rows;
+        try {
+          rows = await Promise.race([
+            this.runtime.listMessages({ tail: true }),
+            wait(Math.max(0, deadline - Date.now())).then(() => null),
+          ]);
+        } catch (error) {
+          // A revoked or expired session will never return the row; stop.
+          if (error?.status === 403 || error?.status === 404) return null;
+          continue; // transient (offline, 5xx); try again
+        }
+        if (!rows) break; // null = hit the deadline mid-request
+        const row = Array.isArray(rows)
+          ? rows.find(
+              (message) => message.role === "assistant" && message.executionId === executionId,
+            )
+          : null;
+        if (row) {
+          // A failed run's error row must surface as the localised error with a
+          // retry, not be rendered as the answer.
+          if (row.metadata?.error) return null;
+          return this.normalizeAnswer({ output: row.content, ui, executionId });
+        }
+      }
+      return null;
     }
 
     normalizeAnswer(result) {

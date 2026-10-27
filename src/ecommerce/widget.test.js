@@ -644,6 +644,53 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.normalizeAnswer(response).products[0].canAdd).toBe(false);
   });
 
+  it("offers only the selected options when the response has no per-option variants", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const attributes = {
+      name: "İpek Elbise",
+      price: 3499,
+      selected_variant_id: 4696,
+      sizes: ["36", "38", "40"],
+      colors: ["Siyah", "Kırmızı"],
+      selected_size: "38",
+      selected_color: "Siyah",
+    };
+    const answer = (overrides) =>
+      widget.normalizeAnswer({
+        output: { message: "Bir seçenek buldum." },
+        ui: {
+          version: "1",
+          resources: [
+            { id: "ticimax-42", kind: "product", attributes: { ...attributes, ...overrides } },
+          ],
+          actions: [{ kind: "cart.add", resource_id: "ticimax-42", payload: {} }],
+          suggestions: [],
+        },
+      }).products[0];
+
+    expect(answer()).toMatchObject({
+      variantId: "4696",
+      sizes: ["38"],
+      colors: ["Siyah"],
+    });
+    // A selected variant whose options are not named cannot be shown as a
+    // choice, but a single listed option is still the one being added.
+    expect(
+      answer({ selected_size: undefined, colors: ["Siyah"], selected_color: undefined }),
+    ).toMatchObject({ sizes: [], colors: ["Siyah"] });
+    // Per-option variants keep the full choice.
+    expect(
+      answer({
+        variants: [
+          { id: "v-36", size: "36", color: "Siyah" },
+          { id: "v-38", size: "38", color: "Siyah" },
+        ],
+      }).sizes,
+    ).toEqual(["36", "38"]);
+  });
+
   it("preselects validated response variants and uses them for cart events", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
@@ -907,6 +954,230 @@ describe("PromptRails ecommerce widget", () => {
       "S bedeni var mı?",
     );
     expect(widget.shadowRoot?.textContent).not.toContain("productId");
+  });
+
+  it("recovers a completed answer from the session when the stream drops", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      const listMessages = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Failed to fetch"))
+        .mockResolvedValueOnce([{ role: "user", content: "Elbise", executionId: "exec-1" }])
+        .mockResolvedValue([
+          { role: "user", content: "Elbise", executionId: "exec-1" },
+          {
+            role: "assistant",
+            content: JSON.stringify({ message: "Bu elbiseyi öneriyorum." }),
+            executionId: "exec-1",
+          },
+        ]);
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+          yield {
+            type: "ui",
+            ui: { version: "1", suggestions: [{ label: "Başka renk", value: "Başka renk" }] },
+          };
+          throw Object.assign(new Error("Failed to fetch"), { status: 0 });
+        },
+        listMessages,
+      };
+
+      const sending = widget.send("Elbise");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await sending;
+
+      expect(listMessages).toHaveBeenCalledTimes(3);
+      const answer = widget.messages.at(-1);
+      expect(answer.text).toBe("Bu elbiseyi öneriyorum.");
+      expect(answer.executionId).toBe("exec-1");
+      // The UI the stream delivered before it dropped is kept.
+      expect(answer.quickReplies).toEqual([{ label: "Başka renk", value: "Başka renk" }]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not wait for an answer when the agent reported an error", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.ready = true;
+    const listMessages = vi.fn();
+    widget.runtime = {
+      async *sendMessageStream() {
+        yield { type: "execution", executionId: "exec-1" };
+        yield { type: "error", error: "Agent could not respond." };
+      },
+      listMessages,
+    };
+
+    await widget.send("Elbise");
+
+    expect(listMessages).not.toHaveBeenCalled();
+    expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
+  });
+
+  it("gives up recovering an answer that never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      const listMessages = vi.fn().mockResolvedValue([]);
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+        },
+        listMessages,
+      };
+
+      const sending = widget.send("Elbise");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await sending;
+
+      expect(listMessages).toHaveBeenCalledTimes(29);
+      expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops recovering at the deadline even when a request stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+        },
+        listMessages: vi.fn(() => new Promise(() => {})),
+      };
+
+      let settled = false;
+      const sending = widget.send("Elbise").then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(95_000);
+      await sending;
+
+      expect(settled).toBe(true);
+      expect(widget.messages.at(-1).text).toContain("ulaşamıyoruz");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not render a failed run's error row as the answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const widget = document.createElement("promptrails-shop-assistant");
+      document.body.appendChild(widget);
+      widget.ready = true;
+      const listMessages = vi.fn().mockResolvedValue([
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error processing your request.",
+          executionId: "exec-1",
+          metadata: { error: true },
+        },
+      ]);
+      widget.runtime = {
+        async *sendMessageStream() {
+          yield { type: "execution", executionId: "exec-1" };
+          throw Object.assign(new Error("Failed to fetch"), { status: 0 });
+        },
+        listMessages,
+      };
+
+      const sending = widget.send("Elbise");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await sending;
+
+      const answer = widget.messages.at(-1);
+      expect(answer.text).toContain("ulaşamıyoruz");
+      expect(answer.text).not.toContain("encountered an error");
+      // Stopped as soon as the error row appeared, not after the full window.
+      expect(listMessages).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores a stale cached option when adding a pinned product", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Pick",
+        products: [
+          {
+            id: "p-pinned",
+            slug: "dress",
+            name: "Dress",
+            category: "Dresses",
+            price: 100,
+            sizes: ["38"],
+            colors: ["Black"],
+            selectedSize: "38",
+            selectedColor: "Black",
+            variantId: "v-38",
+            canAdd: true,
+          },
+        ],
+      },
+    ];
+    // A size/colour the shopper picked for this id in an earlier render/session.
+    widget.selectedVariants = { "p-pinned": { size: "36", color: "Red" } };
+    const listener = vi.fn();
+    widget.addEventListener("promptrails:cart-add", listener);
+
+    widget.paintMessages();
+    widget.shadowRoot.querySelector("[data-add]").click();
+
+    expect(listener.mock.calls[0][0].detail).toMatchObject({
+      productId: "p-pinned",
+      variantId: "v-38",
+      size: "38",
+      color: "Black",
+    });
+  });
+
+  it("keeps the full option list for a product with only a default variant id", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const product = widget.normalizeAnswer({
+      output: { message: "Pick" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "p",
+            kind: "product",
+            attributes: {
+              name: "Dress",
+              price: 100,
+              // A default variant id, NOT a selected one: it must not pin options.
+              variant_id: 7,
+              sizes: ["36", "38", "40"],
+              colors: ["Black", "Red"],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    }).products[0];
+
+    expect(product.sizes).toEqual(["36", "38", "40"]);
+    expect(product.colors).toEqual(["Black", "Red"]);
   });
 
   it("shows customer-safe tool progress and completion copy", async () => {
