@@ -500,6 +500,27 @@ describe("PromptRails ecommerce widget", () => {
     expect(link?.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
+  it("keeps Markdown product links inline instead of duplicating them as standalone actions", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("allowed-action-origins", '["https://shop.example.com"]');
+    document.body.appendChild(widget);
+
+    const answer = widget.normalizeAnswer({
+      output: {
+        message:
+          "\u2022 **[Birinci \u00dcr\u00fcn](https://shop.example.com/birinci)**\n\u2022 **[\u0130kinci \u00dcr\u00fcn](https://shop.example.com/ikinci)**\n\u2022 **[\u00dc\u00e7\u00fcnc\u00fc \u00dcr\u00fcn](https://shop.example.com/ucuncu)**\n\u2022 **[D\u00f6rd\u00fcnc\u00fc \u00dcr\u00fcn](https://shop.example.com/dorduncu)**",
+      },
+    });
+    widget.messages = [{ role: "assistant", ...answer }];
+    widget.paintMessages();
+
+    expect(answer.actions).toEqual([]);
+    expect(answer.text).toContain("[Birinci \u00dcr\u00fcn](https://shop.example.com/birinci)");
+    expect(widget.shadowRoot.querySelectorAll(".markdown a")).toHaveLength(4);
+    expect(widget.shadowRoot.querySelector("[data-action-url]")).toBeNull();
+    expect(widget.shadowRoot.querySelector(".markdown")?.textContent).not.toContain("](");
+  });
+
   it("renders standalone structured open actions only for explicitly allowed origins", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("allowed-action-origins", '["https://help.example.com"]');

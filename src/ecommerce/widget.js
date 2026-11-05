@@ -134,6 +134,9 @@ import { normalizeChatUI } from "../ui/protocol";
     let message = String(value ?? "");
     const actions = [];
     for (const match of message.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+      // Inline Markdown links belong to the answer body. Extracting only their
+      // URL would leave a broken `[label]()` fragment and a duplicate CTA.
+      if (message.slice(match.index - 2, match.index) === "](") continue;
       const raw = match[0];
       const candidate = raw.replace(/[),.;!?]+$/, "");
       const url = allowedActionUrl(candidate, allowedOrigins);
