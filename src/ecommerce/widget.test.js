@@ -452,6 +452,58 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.ratingVisible).toBe(true);
   });
 
+  it("restores rating focus after an attribute-driven shell render", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    widget.setAttribute("locale", "en");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(widget.shadowRoot?.activeElement?.getAttribute("data-session-rating")).toBe("1");
+  });
+
+  it("traps Tab inside a visible rating when focus is outside after a render", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+    widget.setAttribute("locale", "en");
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(widget.shadowRoot?.activeElement?.getAttribute("data-session-rating")).toBe("1");
+  });
+
+  it("clears an active rating when the feature is disabled", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    widget.setAttribute("session-rating-enabled", "false");
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+  });
+
   it("remembers a persisted session rating across widget instances", () => {
     const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
     const first = document.createElement("promptrails-shop-assistant");

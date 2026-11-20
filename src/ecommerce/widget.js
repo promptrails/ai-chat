@@ -576,6 +576,11 @@ import { normalizeChatUI } from "../ui/protocol";
       // re-run an embed script — tore down a live runtime and fetched a new
       // token for nothing.
       if (oldValue === newValue) return;
+      if (name === "session-rating-enabled" && newValue !== "true" && this.ratingVisible) {
+        this.rememberSessionRating("skipped");
+        this.ratingVisible = false;
+        this.ratingSessionId = "";
+      }
       if (PromptRailsShopAssistant.RUNTIME_ATTRIBUTES.has(name)) this.queueRuntimeRebuild();
       this.renderShell();
     }
@@ -1295,6 +1300,12 @@ import { normalizeChatUI } from "../ui/protocol";
 
     toggle(next) {
       if (!next && this.cartDrawerProductId) this.closeCartDrawer({ restoreFocus: false });
+      if (!next && this.ratingVisible) {
+        this.rememberSessionRating("skipped");
+        this.ratingVisible = false;
+        this.ratingSessionId = "";
+        this.syncSessionRatingUI();
+      }
       this.opened = next;
       this.setPageScrollLocked(next);
       this.root.querySelector(".panel")?.classList.toggle("is-open", next);
@@ -1352,8 +1363,6 @@ import { normalizeChatUI } from "../ui/protocol";
       this.ratingVisible = true;
       this.ratingSessionId = this.runtime?.sessionId || "";
       this.syncSessionRatingUI();
-      const rating = this.root.querySelector(".session-rating");
-      requestAnimationFrame(() => rating?.querySelector("[data-session-rating]")?.focus());
     }
 
     rememberSessionRating(value) {
@@ -1398,6 +1407,16 @@ import { normalizeChatUI } from "../ui/protocol";
         if (this.ratingVisible) child.setAttribute("inert", "");
         else child.removeAttribute("inert");
       }
+      if (this.ratingVisible) this.focusSessionRating();
+    }
+
+    focusSessionRating() {
+      requestAnimationFrame(() => {
+        if (!this.opened || !this.ratingVisible) return;
+        const rating = this.root.querySelector(".session-rating");
+        if (!rating || rating.contains(this.root.activeElement)) return;
+        rating.querySelector("[data-session-rating]")?.focus();
+      });
     }
 
     isMobileViewport() {
@@ -1462,10 +1481,14 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable.at(-1);
-      if (event.shiftKey && this.root.activeElement === first) {
+      const active = this.root.activeElement;
+      if (this.ratingVisible && (!active || !focusRoot?.contains(active))) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && this.root.activeElement === last) {
+      } else if (!event.shiftKey && active === last) {
         event.preventDefault();
         first.focus();
       }
