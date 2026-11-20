@@ -1340,12 +1340,16 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!this.messages.some((message) => message.role === "assistant")) return false;
       const sessionId = this.runtime?.sessionId;
       if (!sessionId) return false;
-      if (this.ratedSessions.has(sessionId)) return false;
+      return !this.hasRememberedSessionRating(sessionId);
+    }
+
+    hasRememberedSessionRating(sessionId) {
+      if (this.ratedSessions.has(sessionId)) return true;
       try {
         const storage = this.sessionRatingStorage();
-        return !storage || storage.getItem(this.sessionRatingKey(sessionId)) === null;
+        return Boolean(storage && storage.getItem(this.sessionRatingKey(sessionId)) !== null);
       } catch {
-        return true;
+        return false;
       }
     }
 
@@ -1379,6 +1383,11 @@ import { normalizeChatUI } from "../ui/protocol";
 
     submitSessionRating(score) {
       if (!Number.isInteger(score) || score < 1 || score > 5) return;
+      const pendingSessionId = this.ratingSessionId || this.runtime?.sessionId;
+      if (!pendingSessionId || this.hasRememberedSessionRating(pendingSessionId)) {
+        this.finishSessionRating();
+        return;
+      }
       const sessionId = this.rememberSessionRating(score);
       if (!sessionId) return;
       this.emit("promptrails:session-rating", { sessionId, score });
@@ -1404,8 +1413,12 @@ import { normalizeChatUI } from "../ui/protocol";
       if (rating) rating.hidden = !this.ratingVisible;
       for (const child of panel?.children || []) {
         if (child === rating) continue;
-        if (this.ratingVisible) child.setAttribute("inert", "");
+        const header = child.matches?.("header");
+        if (this.ratingVisible && !header) child.setAttribute("inert", "");
         else child.removeAttribute("inert");
+        const newChat = header ? child.querySelector(".new-chat") : null;
+        if (this.ratingVisible) newChat?.setAttribute("inert", "");
+        else newChat?.removeAttribute("inert");
       }
       if (this.ratingVisible) this.focusSessionRating();
     }
@@ -1478,6 +1491,10 @@ import { normalizeChatUI } from "../ui/protocol";
           'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
         ) || []),
       ];
+      if (this.ratingVisible) {
+        const close = this.root.querySelector(".close:not([disabled])");
+        if (close) focusable.push(close);
+      }
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable.at(-1);

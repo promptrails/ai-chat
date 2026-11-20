@@ -504,6 +504,48 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
   });
 
+  it("keeps the visible close control usable while a rating is open", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    expect(widget.shadowRoot?.querySelector("header")?.hasAttribute("inert")).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".new-chat")?.hasAttribute("inert")).toBe(true);
+    widget.shadowRoot?.querySelector(".close")?.click();
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+  });
+
+  it("emits only one rating for a persisted session shared by two widgets", () => {
+    const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
+    const widgets = [0, 1].map(() => {
+      const widget = document.createElement("promptrails-shop-assistant");
+      widget.setAttribute("session-rating-enabled", "true");
+      document.body.appendChild(widget);
+      widget.runtime = { sessionId };
+      widget.messages = [{ role: "assistant", text: "Yanıt" }];
+      widget.open();
+      widget.close();
+      return widget;
+    });
+    const listeners = widgets.map(() => vi.fn());
+    widgets.forEach((widget, index) =>
+      widget.addEventListener("promptrails:session-rating", listeners[index]),
+    );
+
+    widgets[0].shadowRoot?.querySelector('[data-session-rating="5"]')?.click();
+    widgets[1].shadowRoot?.querySelector('[data-session-rating="4"]')?.click();
+
+    expect(listeners[0]).toHaveBeenCalledOnce();
+    expect(listeners[1]).not.toHaveBeenCalled();
+    expect(widgets[1].ratingVisible).toBe(false);
+  });
+
   it("remembers a persisted session rating across widget instances", () => {
     const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
     const first = document.createElement("promptrails-shop-assistant");
@@ -603,7 +645,7 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".conversation")?.hasAttribute("inert")).toBe(false);
   });
 
-  it("traps rating keyboard focus inside the modal", () => {
+  it("traps rating keyboard focus across the prompt and its close control", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("session-rating-enabled", "true");
     document.body.appendChild(widget);
@@ -612,7 +654,7 @@ describe("PromptRails ecommerce widget", () => {
     widget.open();
     widget.close();
     const first = widget.shadowRoot?.querySelector('[data-session-rating="1"]');
-    const last = widget.shadowRoot?.querySelector(".session-rating-skip");
+    const last = widget.shadowRoot?.querySelector(".close");
     last?.focus();
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
