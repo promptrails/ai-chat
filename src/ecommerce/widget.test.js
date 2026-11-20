@@ -797,6 +797,52 @@ describe("PromptRails ecommerce widget", () => {
     ).toHaveLength(0);
   });
 
+  it("renders a trusted single-item promotion without treating multi-buy pricing as the unit price", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({
+      output: { message: "Pick" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "promoted-wallet",
+            kind: "product",
+            attributes: {
+              name: "Taba Kadın Deri Cüzdan",
+              price: 3990,
+              promotions: [
+                {
+                  label: "Sepette %10 İndirim",
+                  condition: "cart",
+                  discounted_price: 3591,
+                },
+                {
+                  label: "2. Ürüne %30 İndirim",
+                  condition: "multi_buy",
+                  discounted_price: 2793,
+                },
+              ],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+    widget.messages = [{ role: "assistant", text: answer.message, products: answer.products }];
+
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelector(".promotion-label")?.textContent).toBe(
+      "Sepette %10 İndirim",
+    );
+    expect(widget.shadowRoot?.querySelector(".price del")?.textContent).toContain("3.990");
+    expect(widget.shadowRoot?.querySelector(".price strong")?.textContent).toContain("3.591");
+    expect(widget.shadowRoot?.textContent).not.toContain("2. Ürüne %30 İndirim");
+  });
+
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
