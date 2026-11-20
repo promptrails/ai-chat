@@ -375,6 +375,54 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".feedback")?.textContent).not.toMatch(/[👍👎]/u);
   });
 
+  it("asks for an opt-in session rating before closing and emits it once", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Size nasıl yardımcı olabilirim?" }];
+    widget.paintMessages();
+    widget.open();
+
+    const closeListener = vi.fn();
+    const ratingListener = vi.fn();
+    widget.addEventListener("promptrails:close", closeListener);
+    widget.addEventListener("promptrails:session-rating", ratingListener);
+    widget.shadowRoot?.querySelector(".close")?.click();
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(true);
+    expect(closeListener).not.toHaveBeenCalled();
+
+    widget.shadowRoot?.querySelector('[data-session-rating="5"]')?.click();
+
+    expect(ratingListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771", score: 5 },
+      }),
+    );
+    expect(closeListener).toHaveBeenCalledOnce();
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+
+    widget.open();
+    widget.shadowRoot?.querySelector(".close")?.click();
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(closeListener).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not ask for a session rating without a completed assistant response", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.open();
+
+    widget.shadowRoot?.querySelector(".close")?.click();
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+  });
+
   it("drops persisted state without a valid activity timestamp", () => {
     const storageKey = "promptrails-shop-widget:workspace-1:agent-1";
     globalThis.localStorage.setItem(

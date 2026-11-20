@@ -5,6 +5,7 @@ export type {
   CartAddDetail,
   ProductViewDetail,
   PromptRailsShopAssistantElement,
+  SessionRatingDetail,
   ShopAssistantContext,
   ShopAssistantEventMap,
   ToolActivityLabels,

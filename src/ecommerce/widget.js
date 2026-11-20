@@ -464,6 +464,7 @@ import { normalizeChatUI } from "../ui/protocol";
         "implicit-cart-action",
         "show-tool-activity",
         "show-activity-duration",
+        "session-rating-enabled",
         "show-quantity",
         "color-picker",
         "tool-labels",
@@ -500,6 +501,8 @@ import { normalizeChatUI } from "../ui/protocol";
       this.activityStartedAt = 0;
       this.activityTimer = 0;
       this.runtimeRebuildQueued = false;
+      this.ratingVisible = false;
+      this.ratedSessions = new Set();
       // Whether connectedCallback has finished its first pass. An upgrade
       // replays every attribute before it runs, so this is what separates
       // "the element is still being set up" from "the host configured it
@@ -682,6 +685,7 @@ import { normalizeChatUI } from "../ui/protocol";
         implicitCartAction: this.getAttribute("implicit-cart-action") === "true",
         showToolActivity: this.getAttribute("show-tool-activity") !== "false",
         showActivityDuration: this.getAttribute("show-activity-duration") === "true",
+        sessionRatingEnabled: this.getAttribute("session-rating-enabled") === "true",
         showQuantity: this.getAttribute("show-quantity") !== "false",
         colorPicker: this.getAttribute("color-picker") === "swatches" ? "swatches" : "select",
         toolLabels: stringMap(this.getAttribute("tool-labels")),
@@ -737,6 +741,9 @@ import { normalizeChatUI } from "../ui/protocol";
         chooseOptions: "Choose product options",
         closeOptions: "Close product options",
         chooseSize: "Choose a size",
+        ratingTitle: "How was your chat experience?",
+        ratingHint: "Rate from 1 to 5",
+        ratingSkip: "Skip",
       };
       const turkish = {
         open: "Sohbeti aç",
@@ -776,6 +783,9 @@ import { normalizeChatUI } from "../ui/protocol";
         chooseOptions: "Ürün seçeneklerini belirle",
         closeOptions: "Ürün seçeneklerini kapat",
         chooseSize: "Beden seç",
+        ratingTitle: "Deneyiminiz nasıldı?",
+        ratingHint: "Bu görüşmeyi 1 ile 5 arasında puanlayın.",
+        ratingSkip: "Geç",
       };
       let custom = {};
       try {
@@ -933,6 +943,11 @@ import { normalizeChatUI } from "../ui/protocol";
           </div>
           <button class="cart-drawer-backdrop" type="button" aria-label="${safe(labels.closeOptions)}" hidden></button>
           <aside class="cart-drawer" part="cart-drawer" role="dialog" aria-modal="true" aria-label="${safe(labels.chooseOptions)}" hidden></aside>
+          <aside class="session-rating" part="session-rating" role="dialog" aria-modal="true" aria-labelledby="pt-session-rating-title" hidden>
+            <div><h2 id="pt-session-rating-title">${safe(labels.ratingTitle)}</h2><p>${safe(labels.ratingHint)}</p></div>
+            <div class="session-rating-options" role="group" aria-label="${safe(labels.ratingHint)}">${[1, 2, 3, 4, 5].map((score) => `<button type="button" data-session-rating="${score}" aria-label="${score} / 5">${score}</button>`).join("")}</div>
+            <button class="session-rating-skip" type="button">${safe(labels.ratingSkip)}</button>
+          </aside>
           ${consented ? `<form class="composer" part="composer"><label class="sr-only" for="pt-message">${safe(labels.message)}</label><textarea id="pt-message" rows="1" maxlength="800" placeholder="${safe(placeholder)}"></textarea><button type="submit" aria-label="${safe(labels.send)}">↑</button></form>` : `<aside class="legal-consent" part="legal-consent" role="note"><p>${legalText}</p><button class="accept-legal" type="button">${safe(legalAcceptLabel || labels.accept)}</button></aside>`}
           ${noticeText}
           <footer part="footer"><span>✦</span> ${safe(labels.poweredBy)}${this.configured ? "" : ` · ${safe(labels.demo)}`}</footer>
@@ -960,7 +975,7 @@ import { normalizeChatUI } from "../ui/protocol";
       const form = this.root.querySelector(".composer");
       const acceptLegal = this.root.querySelector(".accept-legal");
       if (launcher) launcher.onclick = () => this.toggle(!this.opened);
-      if (close) close.onclick = () => this.toggle(false);
+      if (close) close.onclick = () => this.requestClose();
       if (newChat) newChat.onclick = () => this.startNewSession();
       if (acceptLegal) acceptLegal.onclick = () => this.acceptLegalConsent();
       if (form)
@@ -1091,6 +1106,11 @@ import { normalizeChatUI } from "../ui/protocol";
         button.onclick = () =>
           this.submitFeedback(Number(button.dataset.messageIndex), Number(button.dataset.feedback));
       });
+      this.root.querySelectorAll("[data-session-rating]").forEach((button) => {
+        button.onclick = () => this.submitSessionRating(Number(button.dataset.sessionRating));
+      });
+      const ratingSkip = this.root.querySelector(".session-rating-skip");
+      if (ratingSkip) ratingSkip.onclick = () => this.dismissSessionRating();
       this.root.querySelectorAll("[data-action-url]").forEach((link) => {
         link.onclick = () =>
           this.emit("promptrails:action-open", {
@@ -1290,6 +1310,69 @@ import { normalizeChatUI } from "../ui/protocol";
       this.emit(next ? "promptrails:open" : "promptrails:close", {});
     }
 
+    sessionRatingKey(sessionId) {
+      return `${this.storageKey}:session-rating:${sessionId}`;
+    }
+
+    shouldRequestSessionRating() {
+      if (!this.config.sessionRatingEnabled || this.ratingVisible || this.busy) return false;
+      if (!this.messages.some((message) => message.role === "assistant")) return false;
+      const sessionId = this.runtime?.sessionId;
+      if (!sessionId) return false;
+      if (this.ratedSessions.has(sessionId)) return false;
+      try {
+        return sessionStorage.getItem(this.sessionRatingKey(sessionId)) === null;
+      } catch {
+        return true;
+      }
+    }
+
+    requestClose() {
+      if (!this.shouldRequestSessionRating()) {
+        this.toggle(false);
+        return;
+      }
+      this.ratingVisible = true;
+      const panel = this.root.querySelector(".panel");
+      const rating = this.root.querySelector(".session-rating");
+      panel?.classList.add("is-rating");
+      if (rating) rating.hidden = false;
+      requestAnimationFrame(() => rating?.querySelector("[data-session-rating]")?.focus());
+    }
+
+    rememberSessionRating(value) {
+      const sessionId = this.runtime?.sessionId;
+      if (!sessionId) return "";
+      this.ratedSessions.add(sessionId);
+      try {
+        sessionStorage.setItem(this.sessionRatingKey(sessionId), String(value));
+      } catch {
+        /* persistence is optional */
+      }
+      return sessionId;
+    }
+
+    submitSessionRating(score) {
+      if (!Number.isInteger(score) || score < 1 || score > 5) return;
+      const sessionId = this.rememberSessionRating(score);
+      if (!sessionId) return;
+      this.emit("promptrails:session-rating", { sessionId, score });
+      this.finishSessionRating();
+    }
+
+    dismissSessionRating() {
+      this.rememberSessionRating("skipped");
+      this.finishSessionRating();
+    }
+
+    finishSessionRating() {
+      this.ratingVisible = false;
+      this.root.querySelector(".panel")?.classList.remove("is-rating");
+      const rating = this.root.querySelector(".session-rating");
+      if (rating) rating.hidden = true;
+      this.toggle(false);
+    }
+
     isMobileViewport() {
       return (
         typeof window.matchMedia === "function" &&
@@ -1315,7 +1398,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.toggle(true);
     }
     close() {
-      this.toggle(false);
+      this.requestClose();
     }
     newSession() {
       return this.startNewSession();
@@ -1338,7 +1421,8 @@ import { normalizeChatUI } from "../ui/protocol";
       }
       if (event.key === "Escape" && this.opened) {
         event.preventDefault();
-        this.toggle(false);
+        if (this.ratingVisible) this.dismissSessionRating();
+        else this.requestClose();
         return;
       }
       if (!this.opened || event.key !== "Tab") return;
@@ -1365,6 +1449,7 @@ import { normalizeChatUI } from "../ui/protocol";
 
     async startNewSession() {
       this.messages = [];
+      this.ratingVisible = false;
       this.recommendedProducts = new Set();
       this.selectedVariants = {};
       try {
@@ -2243,6 +2328,13 @@ import { normalizeChatUI } from "../ui/protocol";
         .feedback button { display: grid; place-items: center; width: 27px; height: 27px; padding: 0; border: 1px solid #d7d2c9; border-radius: 50%; background: #fff; color: #77736c; cursor: pointer; }
         .feedback button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
         .feedback button[aria-pressed="true"] { border-color: #171715; background: #ebe7df; color: #171715; }
+        .session-rating { position: absolute; z-index: 6; inset: 64px 0 0; display: grid; place-content: center; justify-items: center; gap: 24px; padding: 32px; background: var(--pt-chat-background, #f7f5f0); color: var(--pt-chat-text, #171715); text-align: center; }
+        .session-rating h2 { margin: 0 0 7px; font: 500 23px/1.2 inherit; }
+        .session-rating p { margin: 0; color: var(--pt-chat-muted, #68655f); font-size: 13px; }
+        .session-rating-options { display: flex; gap: 8px; }
+        .session-rating-options button { width: 48px; height: 48px; border: 1px solid var(--pt-chat-border, #d7d2c9); background: var(--pt-chat-surface, #fff); color: inherit; font: 600 16px inherit; cursor: pointer; }
+        .session-rating-options button:hover, .session-rating-options button:focus-visible { border-color: var(--pt-accent); outline: 2px solid transparent; box-shadow: 0 0 0 2px var(--pt-accent); }
+        .session-rating-skip { border: 0; background: transparent; color: var(--pt-chat-muted, #68655f); font: 500 12px inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
         @media (max-width: 560px) {
           .panel {
             position: fixed !important;

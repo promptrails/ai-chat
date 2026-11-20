@@ -33,6 +33,11 @@ export interface ActionOpenDetail {
   label: string;
 }
 
+export interface SessionRatingDetail {
+  sessionId: string;
+  score: 1 | 2 | 3 | 4 | 5;
+}
+
 export interface ShopAssistantEventMap {
   "promptrails:open": CustomEvent<Record<string, never>>;
   "promptrails:close": CustomEvent<Record<string, never>>;
@@ -46,6 +51,7 @@ export interface ShopAssistantEventMap {
   "promptrails:cart-add": CustomEvent<CartAddDetail>;
   "promptrails:action-open": CustomEvent<ActionOpenDetail>;
   "promptrails:feedback": CustomEvent<{ executionId: string; value: 1 | -1 }>;
+  "promptrails:session-rating": CustomEvent<SessionRatingDetail>;
   "promptrails:runtime": CustomEvent<BrowserRuntimeEvent>;
   "promptrails:error": CustomEvent<{ code: string }>;
 }

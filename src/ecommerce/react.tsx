@@ -36,6 +36,8 @@ export interface ShopAssistantProps {
   implicitCartAction?: boolean;
   showToolActivity?: boolean;
   showActivityDuration?: boolean;
+  /** Ask for one optional 1–5 rating when a completed chat closes. Defaults to false. */
+  sessionRatingEnabled?: boolean;
   showQuantity?: boolean;
   colorPicker?: "select" | "swatches";
   toolLabels?: ToolActivityLabels;
@@ -84,6 +86,7 @@ const attributes = [
   ["implicitCartAction", "implicit-cart-action"],
   ["showToolActivity", "show-tool-activity"],
   ["showActivityDuration", "show-activity-duration"],
+  ["sessionRatingEnabled", "session-rating-enabled"],
   ["showQuantity", "show-quantity"],
   ["colorPicker", "color-picker"],
   ["toolLabels", "tool-labels"],

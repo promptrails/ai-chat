@@ -39,6 +39,7 @@ Pin a release in production:
   visitor-tracking="true"
   show-tool-activity="true"
   show-activity-duration="false"
+  session-rating-enabled="false"
   show-quantity="false"
   color-picker="swatches"
   legal-notice="Devam ederek {{link}} okuduğunuzu onaylıyorsunuz."
@@ -294,6 +295,24 @@ document.addEventListener("promptrails:session-new", () => {
 ```
 
 Product views close the panel before emitting `promptrails:product-view` by default so client-side navigation is visible. Set `close-on-product-view="false"` if the host intentionally keeps the assistant open. Cart buttons recover when the host emits `promptrails:cart-failed`; a ten-second confirmation timeout also prevents a permanently disabled button.
+
+## Optional session rating
+
+Set `session-rating-enabled="true"` to ask for one optional 1–5 rating when a
+shopper closes a chat that has received an assistant response. The feature is
+off by default. A rating is remembered for that chat session so reopening the
+same chat does not ask again. Skipping the prompt also closes the assistant and
+does not emit a rating.
+
+The widget emits a composed `promptrails:session-rating` event. The host decides
+how and whether to store it; the SDK does not call an analytics backend itself:
+
+```js
+document.addEventListener("promptrails:session-rating", (event) => {
+  analytics.track("assistant_session_rating", event.detail);
+  // { sessionId: "...", score: 1 | 2 | 3 | 4 | 5 }
+});
+```
 
 The component also exposes a typed imperative API:
 
