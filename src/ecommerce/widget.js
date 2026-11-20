@@ -1337,7 +1337,11 @@ import { normalizeChatUI } from "../ui/protocol";
 
     shouldRequestSessionRating() {
       if (!this.config.sessionRatingEnabled || this.ratingVisible || this.busy) return false;
-      if (!this.messages.some((message) => message.role === "assistant")) return false;
+      // A locally-generated error reply (role "assistant", marked with error)
+      // is not a completed assistant response: rating after only a failed turn
+      // would consume the session's one prompt before a later retry succeeds.
+      if (!this.messages.some((message) => message.role === "assistant" && !message.error))
+        return false;
       const sessionId = this.runtime?.sessionId;
       if (!sessionId) return false;
       return !this.hasRememberedSessionRating(sessionId);
@@ -1688,6 +1692,7 @@ import { normalizeChatUI } from "../ui/protocol";
       } catch (error) {
         this.messages.push({
           role: "assistant",
+          error: true,
           text: this.errorMessage(error),
           products: [],
           quickReplies: [this.labels.retry],

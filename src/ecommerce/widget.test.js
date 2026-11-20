@@ -425,6 +425,32 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
   });
 
+  it("does not ask for a rating when the only assistant reply is a local error", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.askPromptRails = vi.fn().mockRejectedValue(new Error("Agent could not respond."));
+    widget.open();
+
+    await widget.send("Merhaba");
+
+    // The failed turn leaves a role:"assistant" error bubble, but it is not a
+    // completed response — closing must not consume the session's one rating.
+    expect(widget.messages.some((m) => m.role === "assistant" && m.error)).toBe(true);
+    expect(widget.shouldRequestSessionRating()).toBe(false);
+    widget.shadowRoot?.querySelector(".close")?.click();
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+
+    // A later successful turn is a real response: the session is still unrated.
+    widget.askPromptRails = vi
+      .fn()
+      .mockResolvedValue({ text: "Buyurun", products: [], quickReplies: [] });
+    await widget.send("tekrar");
+    expect(widget.shouldRequestSessionRating()).toBe(true);
+  });
+
   it("does not activate a rating when an already closed widget is closed again", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("session-rating-enabled", "true");
