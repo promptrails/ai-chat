@@ -486,7 +486,7 @@ describe("PromptRails ecommerce widget", () => {
     window.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(widget.shadowRoot?.activeElement?.getAttribute("data-session-rating")).toBe("1");
+    expect(widget.shadowRoot?.activeElement).toBe(widget.shadowRoot?.querySelector(".close"));
   });
 
   it("clears an active rating when the feature is disabled", () => {
@@ -653,13 +653,28 @@ describe("PromptRails ecommerce widget", () => {
     widget.messages = [{ role: "assistant", text: "Yanıt" }];
     widget.open();
     widget.close();
-    const first = widget.shadowRoot?.querySelector('[data-session-rating="1"]');
-    const last = widget.shadowRoot?.querySelector(".close");
+    const first = widget.shadowRoot?.querySelector(".close");
+    const last = widget.shadowRoot?.querySelector(".session-rating-skip");
     last?.focus();
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
 
     expect(widget.shadowRoot?.activeElement).toBe(first);
+
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }),
+    );
+
+    expect(widget.shadowRoot?.activeElement).toBe(last);
+  });
+
+  it("positions the mobile rating below the safe-area-aware header", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    expect(widget.compactStyles()).toContain(
+      ".session-rating { inset: calc(60px + env(safe-area-inset-top)) 0 0; }",
+    );
   });
 
   it("drops persisted state without a valid activity timestamp", () => {

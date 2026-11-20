@@ -1493,13 +1493,13 @@ import { normalizeChatUI } from "../ui/protocol";
       ];
       if (this.ratingVisible) {
         const close = this.root.querySelector(".close:not([disabled])");
-        if (close) focusable.push(close);
+        if (close) focusable.unshift(close);
       }
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable.at(-1);
       const active = this.root.activeElement;
-      if (this.ratingVisible && (!active || !focusRoot?.contains(active))) {
+      if (this.ratingVisible && !focusable.includes(active)) {
         event.preventDefault();
         (event.shiftKey ? last : first).focus();
       } else if (event.shiftKey && active === first) {
@@ -2407,6 +2407,7 @@ import { normalizeChatUI } from "../ui/protocol";
         .session-rating-options button:hover, .session-rating-options button:focus-visible { border-color: var(--pt-accent); outline: 2px solid transparent; box-shadow: 0 0 0 2px var(--pt-accent); }
         .session-rating-skip { border: 0; background: transparent; color: var(--pt-chat-muted, #68655f); font: 500 12px inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
         @media (max-width: 560px) {
+          .session-rating { inset: calc(60px + env(safe-area-inset-top)) 0 0; }
           .panel {
             position: fixed !important;
             inset: 0 !important;
