@@ -438,6 +438,20 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
   });
 
+  it("still asks once when browser storage is unavailable", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.sessionRatingStorage = () => null;
+    widget.open();
+
+    widget.close();
+
+    expect(widget.ratingVisible).toBe(true);
+  });
+
   it("remembers a persisted session rating across widget instances", () => {
     const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
     const first = document.createElement("promptrails-shop-assistant");

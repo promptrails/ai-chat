@@ -1331,7 +1331,8 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!sessionId) return false;
       if (this.ratedSessions.has(sessionId)) return false;
       try {
-        return this.sessionRatingStorage()?.getItem(this.sessionRatingKey(sessionId)) === null;
+        const storage = this.sessionRatingStorage();
+        return !storage || storage.getItem(this.sessionRatingKey(sessionId)) === null;
       } catch {
         return true;
       }
