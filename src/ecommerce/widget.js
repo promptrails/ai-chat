@@ -371,12 +371,27 @@ import { normalizeChatUI } from "../ui/protocol";
       selectedVariant?.price?.compareAt ??
       selectedVariant?.compare_at ??
       selectedVariant?.compareAt;
-    const compareAt = finiteNumber(
+    let compareAt = finiteNumber(
       typeof compareAtValue === "object" ? compareAtValue?.min : compareAtValue,
       compareAtValue?.amount,
       compareAtValue?.value,
       variantCompareAt,
     );
+    const promotion = (Array.isArray(attributes.promotions) ? attributes.promotions : [])
+      .map((candidate) => ({
+        label: boundedText(candidate?.label, 160),
+        condition: boundedText(candidate?.condition, 40).toLowerCase(),
+        discountedPrice: finiteNumber(candidate?.discounted_price, candidate?.discountedPrice),
+      }))
+      .find(
+        (candidate) =>
+          candidate.label &&
+          candidate.condition !== "multi_buy" &&
+          candidate.discountedPrice > 0 &&
+          candidate.discountedPrice < price,
+      );
+    const displayPrice = promotion?.discountedPrice || price;
+    if (promotion && compareAt <= displayPrice) compareAt = price;
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
     // Without per-option variants the cart can only ever add the one variant the
     // answer selected, so offering the other sizes and colours would put an
@@ -394,8 +409,9 @@ import { normalizeChatUI } from "../ui/protocol";
       name,
       category,
       description: boundedText(attributes.description ?? attributes.aciklama, 800),
-      price,
-      compareAt: compareAt > price ? compareAt : 0,
+      price: displayPrice,
+      compareAt: compareAt > displayPrice ? compareAt : 0,
+      promotionLabel: promotion?.label || "",
       imageUrl: firstImageUrl(
         attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images,
       ),
@@ -1934,7 +1950,7 @@ import { normalizeChatUI } from "../ui/protocol";
             : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`
         }
         ${summary && product.canAdd !== false && product.inStock !== false ? `<button type="button" class="product-add-trigger" data-cart-drawer-open="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.addLabel || this.labels.add}`)}">＋</button>` : ""}
-        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3><div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
+        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3>${product.promotionLabel ? `<span class="promotion-label">${safe(product.promotionLabel)}</span>` : ""}<div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
         ${
           !summary && (product.sizes?.length || product.colors?.length)
             ? `<div class="variants">
@@ -2073,6 +2089,7 @@ import { normalizeChatUI } from "../ui/protocol";
         }
         .price { display: flex; align-items: baseline; gap: 7px; }
         .price del { color: var(--pt-chat-muted, #68655f); font-size: 9px; }
+        .promotion-label { display: block; margin: 4px 0 2px; color: var(--pt-chat-muted, #68655f); font-size: 9px; font-weight: 600; line-height: 1.25; }
         .recommendation-copy > p {
           display: -webkit-box;
           overflow: hidden;
