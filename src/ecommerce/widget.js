@@ -1316,6 +1316,14 @@ import { normalizeChatUI } from "../ui/protocol";
       return `${this.storageKey}:session-rating:${sessionId}`;
     }
 
+    sessionRatingStorage() {
+      try {
+        return this.config.persistSession ? localStorage : sessionStorage;
+      } catch {
+        return null;
+      }
+    }
+
     shouldRequestSessionRating() {
       if (!this.config.sessionRatingEnabled || this.ratingVisible || this.busy) return false;
       if (!this.messages.some((message) => message.role === "assistant")) return false;
@@ -1323,13 +1331,14 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!sessionId) return false;
       if (this.ratedSessions.has(sessionId)) return false;
       try {
-        return sessionStorage.getItem(this.sessionRatingKey(sessionId)) === null;
+        return this.sessionRatingStorage()?.getItem(this.sessionRatingKey(sessionId)) === null;
       } catch {
         return true;
       }
     }
 
     requestClose() {
+      if (!this.opened) return;
       if (this.ratingVisible) {
         this.dismissSessionRating();
         return;
@@ -1338,6 +1347,7 @@ import { normalizeChatUI } from "../ui/protocol";
         this.toggle(false);
         return;
       }
+      if (this.cartDrawerProductId) this.closeCartDrawer({ restoreFocus: false });
       this.ratingVisible = true;
       this.ratingSessionId = this.runtime?.sessionId || "";
       this.syncSessionRatingUI();
@@ -1350,7 +1360,7 @@ import { normalizeChatUI } from "../ui/protocol";
       if (!sessionId) return "";
       this.ratedSessions.add(sessionId);
       try {
-        sessionStorage.setItem(this.sessionRatingKey(sessionId), String(value));
+        this.sessionRatingStorage()?.setItem(this.sessionRatingKey(sessionId), String(value));
       } catch {
         /* persistence is optional */
       }

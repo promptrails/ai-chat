@@ -5,15 +5,17 @@ import "./widget.js";
 
 describe("PromptRails ecommerce widget", () => {
   beforeEach(() => {
-    const values = new Map();
-    const storage = {
-      clear: () => values.clear(),
-      getItem: (key) => values.get(key) ?? null,
-      removeItem: (key) => values.delete(key),
-      setItem: (key, value) => values.set(key, String(value)),
+    const storage = () => {
+      const values = new Map();
+      return {
+        clear: () => values.clear(),
+        getItem: (key) => values.get(key) ?? null,
+        removeItem: (key) => values.delete(key),
+        setItem: (key, value) => values.set(key, String(value)),
+      };
     };
-    vi.stubGlobal("localStorage", storage);
-    vi.stubGlobal("sessionStorage", storage);
+    vi.stubGlobal("localStorage", storage());
+    vi.stubGlobal("sessionStorage", storage());
     document.body.innerHTML = "";
     document.documentElement.style.overflow = "";
     vi.stubGlobal(
@@ -421,6 +423,66 @@ describe("PromptRails ecommerce widget", () => {
 
     expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
     expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+  });
+
+  it("does not activate a rating when an already closed widget is closed again", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+
+    widget.close();
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+  });
+
+  it("remembers a persisted session rating across widget instances", () => {
+    const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
+    const first = document.createElement("promptrails-shop-assistant");
+    first.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(first);
+    first.runtime = { sessionId };
+    first.messages = [{ role: "assistant", text: "Yanıt" }];
+    first.open();
+    first.close();
+    first.shadowRoot?.querySelector('[data-session-rating="5"]')?.click();
+    first.remove();
+    globalThis.sessionStorage.clear();
+
+    const resumed = document.createElement("promptrails-shop-assistant");
+    resumed.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(resumed);
+    resumed.runtime = { sessionId };
+    resumed.messages = [{ role: "assistant", text: "Yanıt" }];
+    resumed.open();
+    resumed.close();
+
+    expect(resumed.ratingVisible).toBe(false);
+  });
+
+  it("closes an open product drawer before presenting the session rating", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Yanıt",
+        products: [{ id: "product-1", name: "Ürün", sizes: ["S", "M"] }],
+      },
+    ];
+    widget.paintMessages();
+    widget.open();
+    widget.shadowRoot?.querySelector("[data-cart-drawer-open]")?.click();
+
+    widget.close();
+
+    expect(widget.ratingVisible).toBe(true);
+    expect(widget.cartDrawerProductId).toBe("");
+    expect(widget.shadowRoot?.querySelector(".cart-drawer")?.hidden).toBe(true);
   });
 
   it("dismisses an active rating when close is requested again", () => {
