@@ -502,6 +502,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.activityTimer = 0;
       this.runtimeRebuildQueued = false;
       this.ratingVisible = false;
+      this.ratingSessionId = "";
       this.ratedSessions = new Set();
       // Whether connectedCallback has finished its first pass. An upgrade
       // replays every attribute before it runs, so this is what separates
@@ -956,6 +957,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.paintMessages();
       if (this.cartDrawerProductId) this.renderCartDrawer();
       this.bind();
+      this.syncSessionRatingUI();
     }
 
     applyThemeCss() {
@@ -1328,20 +1330,23 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     requestClose() {
+      if (this.ratingVisible) {
+        this.dismissSessionRating();
+        return;
+      }
       if (!this.shouldRequestSessionRating()) {
         this.toggle(false);
         return;
       }
       this.ratingVisible = true;
-      const panel = this.root.querySelector(".panel");
+      this.ratingSessionId = this.runtime?.sessionId || "";
+      this.syncSessionRatingUI();
       const rating = this.root.querySelector(".session-rating");
-      panel?.classList.add("is-rating");
-      if (rating) rating.hidden = false;
       requestAnimationFrame(() => rating?.querySelector("[data-session-rating]")?.focus());
     }
 
     rememberSessionRating(value) {
-      const sessionId = this.runtime?.sessionId;
+      const sessionId = this.ratingSessionId || this.runtime?.sessionId;
       if (!sessionId) return "";
       this.ratedSessions.add(sessionId);
       try {
@@ -1367,10 +1372,21 @@ import { normalizeChatUI } from "../ui/protocol";
 
     finishSessionRating() {
       this.ratingVisible = false;
-      this.root.querySelector(".panel")?.classList.remove("is-rating");
-      const rating = this.root.querySelector(".session-rating");
-      if (rating) rating.hidden = true;
+      this.ratingSessionId = "";
+      this.syncSessionRatingUI();
       this.toggle(false);
+    }
+
+    syncSessionRatingUI() {
+      const panel = this.root.querySelector(".panel");
+      const rating = this.root.querySelector(".session-rating");
+      panel?.classList.toggle("is-rating", this.ratingVisible);
+      if (rating) rating.hidden = !this.ratingVisible;
+      for (const child of panel?.children || []) {
+        if (child === rating) continue;
+        if (this.ratingVisible) child.setAttribute("inert", "");
+        else child.removeAttribute("inert");
+      }
     }
 
     isMobileViewport() {
@@ -1426,10 +1442,11 @@ import { normalizeChatUI } from "../ui/protocol";
         return;
       }
       if (!this.opened || event.key !== "Tab") return;
+      const focusRoot = this.ratingVisible ? this.root.querySelector(".session-rating") : this.root;
       const focusable = [
-        ...this.root.querySelectorAll(
+        ...(focusRoot?.querySelectorAll(
           'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-        ),
+        ) || []),
       ];
       if (!focusable.length) return;
       const first = focusable[0];
@@ -1448,8 +1465,11 @@ import { normalizeChatUI } from "../ui/protocol";
     }
 
     async startNewSession() {
+      if (this.ratingVisible) this.rememberSessionRating("skipped");
       this.messages = [];
       this.ratingVisible = false;
+      this.ratingSessionId = "";
+      this.syncSessionRatingUI();
       this.recommendedProducts = new Set();
       this.selectedVariants = {};
       try {

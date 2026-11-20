@@ -423,6 +423,75 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
   });
 
+  it("dismisses an active rating when close is requested again", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    widget.close();
+    widget.open();
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(widget.ratingVisible).toBe(false);
+  });
+
+  it("preserves the active rating across shell rerenders", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    widget.setAttribute("locale", "en");
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".conversation")?.hasAttribute("inert")).toBe(true);
+  });
+
+  it("clears an active rating before starting a new session", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = {
+      sessionId: "3L0X2OkNphRITFyLIMDDQfSK771",
+      newSession: vi.fn(async () => {
+        widget.runtime.sessionId = "3L0X2OkNphRITFyLIMDDQfSK772";
+      }),
+    };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    await widget.newSession();
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector(".conversation")?.hasAttribute("inert")).toBe(false);
+  });
+
+  it("traps rating keyboard focus inside the modal", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+    const first = widget.shadowRoot?.querySelector('[data-session-rating="1"]');
+    const last = widget.shadowRoot?.querySelector(".session-rating-skip");
+    last?.focus();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+
+    expect(widget.shadowRoot?.activeElement).toBe(first);
+  });
+
   it("drops persisted state without a valid activity timestamp", () => {
     const storageKey = "promptrails-shop-widget:workspace-1:agent-1";
     globalThis.localStorage.setItem(
