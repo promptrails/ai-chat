@@ -5,15 +5,17 @@ import "./widget.js";
 
 describe("PromptRails ecommerce widget", () => {
   beforeEach(() => {
-    const values = new Map();
-    const storage = {
-      clear: () => values.clear(),
-      getItem: (key) => values.get(key) ?? null,
-      removeItem: (key) => values.delete(key),
-      setItem: (key, value) => values.set(key, String(value)),
+    const storage = () => {
+      const values = new Map();
+      return {
+        clear: () => values.clear(),
+        getItem: (key) => values.get(key) ?? null,
+        removeItem: (key) => values.delete(key),
+        setItem: (key, value) => values.set(key, String(value)),
+      };
     };
-    vi.stubGlobal("localStorage", storage);
-    vi.stubGlobal("sessionStorage", storage);
+    vi.stubGlobal("localStorage", storage());
+    vi.stubGlobal("sessionStorage", storage());
     document.body.innerHTML = "";
     document.documentElement.style.overflow = "";
     vi.stubGlobal(
@@ -373,6 +375,332 @@ describe("PromptRails ecommerce widget", () => {
 
     expect(widget.shadowRoot?.querySelectorAll(".feedback button svg")).toHaveLength(2);
     expect(widget.shadowRoot?.querySelector(".feedback")?.textContent).not.toMatch(/[👍👎]/u);
+  });
+
+  it("asks for an opt-in session rating before closing and emits it once", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Size nasıl yardımcı olabilirim?" }];
+    widget.paintMessages();
+    widget.open();
+
+    const closeListener = vi.fn();
+    const ratingListener = vi.fn();
+    widget.addEventListener("promptrails:close", closeListener);
+    widget.addEventListener("promptrails:session-rating", ratingListener);
+    widget.shadowRoot?.querySelector(".close")?.click();
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(true);
+    expect(closeListener).not.toHaveBeenCalled();
+
+    widget.shadowRoot?.querySelector('[data-session-rating="5"]')?.click();
+
+    expect(ratingListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771", score: 5 },
+      }),
+    );
+    expect(closeListener).toHaveBeenCalledOnce();
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+
+    widget.open();
+    widget.shadowRoot?.querySelector(".close")?.click();
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(closeListener).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not ask for a session rating without a completed assistant response", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.open();
+
+    widget.shadowRoot?.querySelector(".close")?.click();
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+  });
+
+  it("does not ask for a rating when the only assistant reply is a local error", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.askPromptRails = vi.fn().mockRejectedValue(new Error("Agent could not respond."));
+    widget.open();
+
+    await widget.send("Merhaba");
+
+    // The failed turn leaves a role:"assistant" error bubble, but it is not a
+    // completed response — closing must not consume the session's one rating.
+    expect(widget.messages.some((m) => m.role === "assistant" && m.error)).toBe(true);
+    expect(widget.shouldRequestSessionRating()).toBe(false);
+    widget.shadowRoot?.querySelector(".close")?.click();
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+
+    // A later successful turn is a real response: the session is still unrated.
+    widget.askPromptRails = vi
+      .fn()
+      .mockResolvedValue({ text: "Buyurun", products: [], quickReplies: [] });
+    await widget.send("tekrar");
+    expect(widget.shouldRequestSessionRating()).toBe(true);
+  });
+
+  it("does not activate a rating when an already closed widget is closed again", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+
+    widget.close();
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+  });
+
+  it("still asks once when browser storage is unavailable", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.sessionRatingStorage = () => null;
+    widget.open();
+
+    widget.close();
+
+    expect(widget.ratingVisible).toBe(true);
+  });
+
+  it("restores rating focus after an attribute-driven shell render", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    widget.setAttribute("locale", "en");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(widget.shadowRoot?.activeElement?.getAttribute("data-session-rating")).toBe("1");
+  });
+
+  it("traps Tab inside a visible rating when focus is outside after a render", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+    widget.setAttribute("locale", "en");
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(widget.shadowRoot?.activeElement).toBe(widget.shadowRoot?.querySelector(".close"));
+  });
+
+  it("clears an active rating when the feature is disabled", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    widget.setAttribute("session-rating-enabled", "false");
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+  });
+
+  it("keeps the visible close control usable while a rating is open", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    expect(widget.shadowRoot?.querySelector("header")?.hasAttribute("inert")).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".new-chat")?.hasAttribute("inert")).toBe(true);
+    widget.shadowRoot?.querySelector(".close")?.click();
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".panel")?.classList.contains("is-open")).toBe(false);
+  });
+
+  it("emits only one rating for a persisted session shared by two widgets", () => {
+    const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
+    const widgets = [0, 1].map(() => {
+      const widget = document.createElement("promptrails-shop-assistant");
+      widget.setAttribute("session-rating-enabled", "true");
+      document.body.appendChild(widget);
+      widget.runtime = { sessionId };
+      widget.messages = [{ role: "assistant", text: "Yanıt" }];
+      widget.open();
+      widget.close();
+      return widget;
+    });
+    const listeners = widgets.map(() => vi.fn());
+    widgets.forEach((widget, index) =>
+      widget.addEventListener("promptrails:session-rating", listeners[index]),
+    );
+
+    widgets[0].shadowRoot?.querySelector('[data-session-rating="5"]')?.click();
+    widgets[1].shadowRoot?.querySelector('[data-session-rating="4"]')?.click();
+
+    expect(listeners[0]).toHaveBeenCalledOnce();
+    expect(listeners[1]).not.toHaveBeenCalled();
+    expect(widgets[1].ratingVisible).toBe(false);
+  });
+
+  it("remembers a persisted session rating across widget instances", () => {
+    const sessionId = "3L0X2OkNphRITFyLIMDDQfSK771";
+    const first = document.createElement("promptrails-shop-assistant");
+    first.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(first);
+    first.runtime = { sessionId };
+    first.messages = [{ role: "assistant", text: "Yanıt" }];
+    first.open();
+    first.close();
+    first.shadowRoot?.querySelector('[data-session-rating="5"]')?.click();
+    first.remove();
+    globalThis.sessionStorage.clear();
+
+    const resumed = document.createElement("promptrails-shop-assistant");
+    resumed.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(resumed);
+    resumed.runtime = { sessionId };
+    resumed.messages = [{ role: "assistant", text: "Yanıt" }];
+    resumed.open();
+    resumed.close();
+
+    expect(resumed.ratingVisible).toBe(false);
+  });
+
+  it("closes an open product drawer before presenting the session rating", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [
+      {
+        role: "assistant",
+        text: "Yanıt",
+        products: [{ id: "product-1", name: "Ürün", sizes: ["S", "M"] }],
+      },
+    ];
+    widget.paintMessages();
+    widget.open();
+    widget.shadowRoot?.querySelector("[data-cart-drawer-open]")?.click();
+
+    widget.close();
+
+    expect(widget.ratingVisible).toBe(true);
+    expect(widget.cartDrawerProductId).toBe("");
+    expect(widget.shadowRoot?.querySelector(".cart-drawer")?.hidden).toBe(true);
+  });
+
+  it("dismisses an active rating when close is requested again", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    widget.close();
+    widget.open();
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(widget.ratingVisible).toBe(false);
+  });
+
+  it("preserves the active rating across shell rerenders", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    widget.setAttribute("locale", "en");
+
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".conversation")?.hasAttribute("inert")).toBe(true);
+  });
+
+  it("clears an active rating before starting a new session", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = {
+      sessionId: "3L0X2OkNphRITFyLIMDDQfSK771",
+      newSession: vi.fn(async () => {
+        widget.runtime.sessionId = "3L0X2OkNphRITFyLIMDDQfSK772";
+      }),
+    };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+
+    await widget.newSession();
+
+    expect(widget.ratingVisible).toBe(false);
+    expect(widget.shadowRoot?.querySelector(".session-rating")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector(".conversation")?.hasAttribute("inert")).toBe(false);
+  });
+
+  it("traps rating keyboard focus across the prompt and its close control", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("session-rating-enabled", "true");
+    document.body.appendChild(widget);
+    widget.runtime = { sessionId: "3L0X2OkNphRITFyLIMDDQfSK771" };
+    widget.messages = [{ role: "assistant", text: "Yanıt" }];
+    widget.open();
+    widget.close();
+    const first = widget.shadowRoot?.querySelector(".close");
+    const last = widget.shadowRoot?.querySelector(".session-rating-skip");
+    last?.focus();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+
+    expect(widget.shadowRoot?.activeElement).toBe(first);
+
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }),
+    );
+
+    expect(widget.shadowRoot?.activeElement).toBe(last);
+  });
+
+  it("positions the mobile rating below the safe-area-aware header", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+
+    expect(widget.compactStyles()).toContain(
+      ".session-rating { inset: calc(60px + env(safe-area-inset-top)) 0 0; }",
+    );
   });
 
   it("drops persisted state without a valid activity timestamp", () => {
