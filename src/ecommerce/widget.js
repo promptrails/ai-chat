@@ -1706,8 +1706,19 @@ import { normalizeChatUI } from "../ui/protocol";
       // hydration promise. Wait for initialization first, then the current
       // hydration, before inserting the new turn so a late restore cannot
       // replace the question and its streamed draft.
-      if (this.initializationPromise) await this.initializationPromise;
-      await this.hydrationPromise;
+      //
+      // A failed prewarm (token/session/`/session`) must NOT reject here: the
+      // form has already cleared the input, so throwing would drop the shopper's
+      // message with no bubble. Swallow it and fall through to the request path,
+      // which surfaces a proper error bubble with retry.
+      try {
+        if (this.initializationPromise) await this.initializationPromise;
+        await this.hydrationPromise;
+      } catch (prepareErr) {
+        if (typeof console !== "undefined") {
+          console.warn("[PromptRails] chat preparation failed; sending anyway", prepareErr);
+        }
+      }
       this.messages.push({ role: "user", text: content });
       this.busy = true;
       this.activeTools.clear();
