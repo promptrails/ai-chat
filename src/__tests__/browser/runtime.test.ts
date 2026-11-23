@@ -70,7 +70,7 @@ describe("browser chat runtime", () => {
     });
     const runtime = createBrowserChatRuntime({ apiKey: "browser", agentId: "agent" });
 
-    await runtime.prepare();
+    await runtime.prepare?.();
 
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/token"))).toHaveLength(1);
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/sessions"))).toHaveLength(
@@ -80,6 +80,31 @@ describe("browser chat runtime", () => {
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/token"))).toHaveLength(1);
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/sessions"))).toHaveLength(
       1,
+    );
+  });
+
+  it("refreshes the token during preparation when a restored session already exists", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/token")) return json({ data: { access_token: "token", expires_in: 900 } });
+      if (url.includes("/messages")) return json({ data: [] });
+      return json({ data: { id: SESSION_ID, resume_token: RESUME_TOKEN } });
+    });
+    localStorage.setItem(
+      "promptrails-chat-widget:default:agent",
+      JSON.stringify({
+        sessionId: SESSION_ID,
+        resumeToken: RESUME_TOKEN,
+        lastActivityAt: Date.now(),
+      }),
+    );
+    const runtime = createBrowserChatRuntime({ apiKey: "browser", agentId: "agent" });
+
+    await runtime.hydrate();
+    await runtime.prepare?.();
+
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/token"))).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/sessions"))).toHaveLength(
+      0,
     );
   });
 

@@ -1332,8 +1332,9 @@ import { normalizeChatUI } from "../ui/protocol";
      * instead of briefly falling through to the local demo answer.
      */
     prepare(initializer) {
-      if (this.initializationPromise) return this.initializationPromise;
-      const pending = Promise.resolve(initializer)
+      const previous = this.initializationPromise;
+      if (previous && initializer === undefined) return previous;
+      const pending = Promise.all([previous || Promise.resolve(), Promise.resolve(initializer)])
         .then(() => Promise.resolve())
         .then(() => {
           if (!this.runtime) throw new Error("Chat runtime is not configured.");
@@ -1701,6 +1702,11 @@ import { normalizeChatUI } from "../ui/protocol";
         return;
       }
       if (!this.ready) await this.loadCatalog();
+      // Credential installation can rebuild the runtime and replace the
+      // hydration promise. Wait for initialization first, then the current
+      // hydration, before inserting the new turn so a late restore cannot
+      // replace the question and its streamed draft.
+      if (this.initializationPromise) await this.initializationPromise;
       await this.hydrationPromise;
       this.messages.push({ role: "user", text: content });
       this.busy = true;
@@ -1709,14 +1715,13 @@ import { normalizeChatUI } from "../ui/protocol";
       this.setTyping(true);
       let draft = null;
       try {
-        if (this.initializationPromise) await this.initializationPromise;
         const result = this.runtime
-          ? await this.askPromptRails(content, (chunk) => {
+          ? await this.askPromptRails(content, (chunk, reset = false) => {
               if (!draft) {
                 draft = { role: "assistant", text: "", products: [], quickReplies: [] };
                 this.messages.push(draft);
               }
-              draft.text += chunk;
+              draft.text = reset ? chunk : draft.text + chunk;
               this.setTyping(false);
               this.paintMessages();
             })
@@ -1783,7 +1788,8 @@ import { normalizeChatUI } from "../ui/protocol";
       } catch (error) {
         if (error?.status === 403) {
           await this.runtime.newSession();
-          return this.askPromptRails(customerMessage);
+          onContent?.("", true);
+          return this.askPromptRails(customerMessage, onContent);
         }
         // The stream delivered a complete answer before it threw (a late
         // transport error): use it instead of polling for what we already have.

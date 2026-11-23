@@ -488,6 +488,37 @@ describe("PromptRails ecommerce widget", () => {
     });
   });
 
+  it("waits for credential-driven hydration before adding a new turn", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.ready = true;
+    let finishInitialization;
+    let finishHydration;
+    const initialization = new Promise((resolve) => {
+      finishInitialization = resolve;
+    });
+    const hydration = new Promise((resolve) => {
+      finishHydration = resolve;
+    });
+    widget.initializationPromise = initialization;
+    widget.runtime = {
+      sessionId: "3L0X2OkNphRITFyLIMDDQfSK771",
+      async *sendMessageStream() {
+        yield { type: "done", output: { message: "Yeni cevap" } };
+      },
+    };
+
+    const sending = widget.send("Yeni soru");
+    widget.hydrationPromise = hydration;
+    finishInitialization();
+    await Promise.resolve();
+    expect(widget.messages).toHaveLength(0);
+    finishHydration();
+    await sending;
+
+    expect(widget.messages.map((message) => message.text)).toEqual(["Yeni soru", "Yeni cevap"]);
+  });
+
   it("does not activate a rating when an already closed widget is closed again", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("session-rating-enabled", "true");
