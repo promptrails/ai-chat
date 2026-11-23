@@ -1714,10 +1714,9 @@ import { normalizeChatUI } from "../ui/protocol";
       try {
         if (this.initializationPromise) await this.initializationPromise;
         await this.hydrationPromise;
-      } catch (prepareErr) {
-        if (typeof console !== "undefined") {
-          console.warn("[PromptRails] chat preparation failed; sending anyway", prepareErr);
-        }
+      } catch {
+        // Swallow: the request path below surfaces the real failure as an error
+        // bubble with retry. Rethrowing here would drop the message silently.
       }
       this.messages.push({ role: "user", text: content });
       this.busy = true;
