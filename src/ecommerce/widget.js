@@ -490,6 +490,7 @@ import { normalizeChatUI } from "../ui/protocol";
       this.runtime = null;
       this.context = {};
       this.hydrationPromise = Promise.resolve();
+      this.initializationPromise = null;
       this.opened = false;
       this.busy = false;
       this.ready = false;
@@ -1321,6 +1322,28 @@ import { normalizeChatUI } from "../ui/protocol";
         );
       }
       this.emit(next ? "promptrails:open" : "promptrails:close", {});
+      if (next && this.runtime) void this.prepare().catch(() => {});
+    }
+
+    /**
+     * Warm the browser token and resumable chat session while the shopper is
+     * reading the greeting. A site-extension loader may pass the promise that
+     * supplies the browser credential; send() then waits for the same promise
+     * instead of briefly falling through to the local demo answer.
+     */
+    prepare(initializer) {
+      if (this.initializationPromise) return this.initializationPromise;
+      const pending = Promise.resolve(initializer)
+        .then(() => Promise.resolve())
+        .then(() => {
+          if (!this.runtime) throw new Error("Chat runtime is not configured.");
+          return this.runtime.prepare?.();
+        });
+      const task = pending.finally(() => {
+        if (this.initializationPromise === task) this.initializationPromise = null;
+      });
+      this.initializationPromise = task;
+      return task;
     }
 
     sessionRatingKey(sessionId) {
@@ -1684,19 +1707,32 @@ import { normalizeChatUI } from "../ui/protocol";
       this.activeTools.clear();
       this.paintMessages();
       this.setTyping(true);
+      let draft = null;
       try {
+        if (this.initializationPromise) await this.initializationPromise;
         const result = this.runtime
-          ? await this.askPromptRails(content)
+          ? await this.askPromptRails(content, (chunk) => {
+              if (!draft) {
+                draft = { role: "assistant", text: "", products: [], quickReplies: [] };
+                this.messages.push(draft);
+              }
+              draft.text += chunk;
+              this.setTyping(false);
+              this.paintMessages();
+            })
           : await this.localAnswer(content);
-        this.messages.push({ role: "assistant", ...result });
+        if (draft) Object.assign(draft, result);
+        else this.messages.push({ role: "assistant", ...result });
       } catch (error) {
-        this.messages.push({
+        const failed = {
           role: "assistant",
           error: true,
           text: this.errorMessage(error),
           products: [],
           quickReplies: [this.labels.retry],
-        });
+        };
+        if (draft) Object.assign(draft, failed);
+        else this.messages.push(failed);
       } finally {
         this.busy = false;
         this.activeTools.clear();
@@ -1706,7 +1742,7 @@ import { normalizeChatUI } from "../ui/protocol";
       }
     }
 
-    async askPromptRails(customerMessage) {
+    async askPromptRails(customerMessage, onContent) {
       if (!this.runtime) throw new Error("Chat runtime is not configured.");
       const pageContext =
         typeof this.contextProvider === "function" ? await this.contextProvider() : {};
@@ -1720,6 +1756,7 @@ import { normalizeChatUI } from "../ui/protocol";
       let ui;
       let executionId = "";
       let agentFailed = false;
+      let streamedContent = "";
       try {
         for await (const event of this.runtime.sendMessageStream({
           content: customerMessage,
@@ -1730,13 +1767,19 @@ import { normalizeChatUI } from "../ui/protocol";
             throw new Error(event.error || "Agent could not respond.");
           }
           if (event.type === "execution") executionId = event.executionId || "";
+          if (event.type === "content" && event.content) {
+            streamedContent += event.content;
+            onContent?.(event.content);
+          }
           if (event.type === "tool_start") this.startToolActivity(event.toolCallId, event.toolName);
           if (event.type === "tool_end") this.endToolActivity(event.toolCallId, event.toolName);
           if (event.type === "ui") ui = event.ui;
           if (event.type === "done") finalOutput = event.output;
         }
         if (finalOutput === undefined) throw new Error("Agent response did not complete.");
-        return this.normalizeAnswer({ output: finalOutput, ui, executionId });
+        const answer = this.normalizeAnswer({ output: finalOutput, ui, executionId });
+        if (!answer.text && streamedContent) answer.text = streamedContent;
+        return answer;
       } catch (error) {
         if (error?.status === 403) {
           await this.runtime.newSession();
