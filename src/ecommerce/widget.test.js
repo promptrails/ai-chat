@@ -1279,6 +1279,37 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".price strong")?.textContent).toContain("14.484");
   });
 
+  it("does not partially rewrite compound or descriptive promotion percentages", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const labelFor = (label, discountedPrice) =>
+      widget.normalizeAnswer({
+        output: { message: "" },
+        ui: {
+          version: "1",
+          resources: [
+            {
+              id: label,
+              kind: "product",
+              attributes: {
+                name: "Campaign product",
+                price: 1000,
+                promotions: [{ label, condition: "cart", discounted_price: discountedPrice }],
+              },
+            },
+          ],
+          actions: [],
+          suggestions: [],
+        },
+      }).products[0].promotionLabel;
+
+    expect(labelFor("Sepette %20 + %10 İndirim", 720)).toBe("Sepette %20 + %10 İndirim");
+    expect(labelFor("100% pamuk, sepette %10 indirim", 900)).toBe(
+      "100% pamuk, sepette %10 indirim",
+    );
+  });
+
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");

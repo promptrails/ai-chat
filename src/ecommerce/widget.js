@@ -394,8 +394,17 @@ import { normalizeChatUI } from "../ui/protocol";
     if (promotion && compareAt <= displayPrice) compareAt = price;
     const promotionLabel = (() => {
       if (!promotion?.label || !(compareAt > displayPrice)) return promotion?.label || "";
-      const statedPercent = promotion.label.match(/(\d+(?:[.,]\d+)?)\s*%|%\s*(\d+(?:[.,]\d+)?)/);
-      if (!statedPercent) return promotion.label;
+      const percentagePattern = /(\d+(?:[.,]\d+)?)\s*%|%\s*(\d+(?:[.,]\d+)?)/g;
+      const percentageMatches = [...promotion.label.matchAll(percentagePattern)];
+      const isDiscountLabel =
+        /discount/i.test(promotion.label) ||
+        promotion.label.toLocaleLowerCase("tr").includes("indirim");
+      // Only rewrite an unambiguous single-discount label. Compound campaigns
+      // and descriptive percentages (for example "100% pamuk") must keep the
+      // merchant-authored wording rather than receiving a misleading partial
+      // substitution.
+      if (percentageMatches.length !== 1 || !isDiscountLabel) return promotion.label;
+      const statedPercent = percentageMatches[0];
       const effectivePercent = Math.round((1 - displayPrice / compareAt) * 100);
       if (!(effectivePercent > 0 && effectivePercent < 100)) return promotion.label;
       const stated = Number((statedPercent[1] || statedPercent[2]).replace(",", "."));
