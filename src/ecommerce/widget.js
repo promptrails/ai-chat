@@ -394,6 +394,12 @@ import { normalizeChatUI } from "../ui/protocol";
     if (promotion && compareAt <= displayPrice) compareAt = price;
     const promotionLabel = (() => {
       if (!promotion?.label || !(compareAt > displayPrice)) return promotion?.label || "";
+      // A product that is already marked down can describe the cart campaign
+      // relative to its current price (for example another 20% off), while the
+      // card strikes the older reference price. Rewriting that label from the
+      // reference price would turn an accurate incremental benefit into an
+      // incorrect total-discount claim.
+      if (compareAt > price) return promotion.label;
       const percentagePattern = /(\d+(?:[.,]\d+)?)\s*%|%\s*(\d+(?:[.,]\d+)?)/g;
       const percentageMatches = [...promotion.label.matchAll(percentagePattern)];
       const lowerLabel = promotion.label.toLocaleLowerCase("tr");

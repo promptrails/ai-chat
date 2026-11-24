@@ -1317,6 +1317,44 @@ describe("PromptRails ecommerce widget", () => {
     );
   });
 
+  it("preserves an incremental promotion label on an already-discounted product", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({
+      output: { message: "" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "already-discounted",
+            kind: "product",
+            attributes: {
+              name: "Discounted product",
+              price: 800,
+              compare_at_price: 1000,
+              promotions: [
+                {
+                  label: "Sepette ekstra %20 İndirim",
+                  condition: "cart",
+                  discounted_price: 640,
+                },
+              ],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+
+    expect(answer.products[0]).toMatchObject({
+      price: 640,
+      compareAt: 1000,
+      promotionLabel: "Sepette ekstra %20 İndirim",
+    });
+  });
+
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
