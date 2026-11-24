@@ -405,6 +405,11 @@ import { normalizeChatUI } from "../ui/protocol";
       const statedPercent = percentageMatches[0];
       const matchStart = statedPercent.index ?? 0;
       const matchEnd = matchStart + statedPercent[0].length;
+      const labelWithoutPercent = lowerLabel.slice(0, matchStart) + lowerLabel.slice(matchEnd);
+      // Another number can represent a coupon, threshold, item count, or other
+      // stacked benefit. Recomputing only the percentage would make that compound
+      // campaign claim misleading, so preserve the merchant label verbatim.
+      if (/\d/.test(labelWithoutPercent)) return promotion.label;
       const beforePercent = lowerLabel.slice(0, matchStart).trimEnd();
       const afterPercent = lowerLabel.slice(matchEnd).trimStart();
       const describesDiscount =
