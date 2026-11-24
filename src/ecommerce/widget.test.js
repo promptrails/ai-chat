@@ -1308,6 +1308,10 @@ describe("PromptRails ecommerce widget", () => {
     expect(labelFor("100% pamuk, sepette %10 indirim", 900)).toBe(
       "100% pamuk, sepette %10 indirim",
     );
+    expect(labelFor("100% pamuk, sepette indirim", 900)).toBe("100% pamuk, sepette indirim");
+    expect(labelFor("100% cotton — discounted in cart", 900)).toBe(
+      "100% cotton — discounted in cart",
+    );
   });
 
   it("ignores selected variants that are not in the allowlisted options", () => {
