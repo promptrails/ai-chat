@@ -26,6 +26,7 @@ for await (const event of runtime.sendMessageStream({
 
 | Method | Purpose |
 | --- | --- |
+| `prepare()` | Warm the browser token and resumable session before the first message. Concurrent calls are deduplicated. |
 | `hydrate()` | Verify a persisted resume capability and return server history. |
 | `listMessages()` | Read the active session after authorization. |
 | `sendMessageStream(message, signal?)` | Send one retry-safe turn and consume typed SSE events. |
@@ -57,6 +58,7 @@ assistant.contextProvider = () => ({
 });
 assistant.updateContext({ campaign: "summer" });
 assistant.open();
+await assistant.prepare();
 await assistant.send("Complete this outfit");
 ```
 

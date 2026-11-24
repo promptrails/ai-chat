@@ -321,9 +321,16 @@ const assistant = document.querySelector("promptrails-shop-assistant");
 assistant.contextProvider = () => ({ productId: window.currentProductId });
 assistant.updateContext({ campaign: "summer" });
 assistant.open();
+await assistant.prepare(); // optional: removes token/session setup from the first send
 await assistant.send("Bu ürünü tamamlayan bir çanta bul");
 await assistant.newSession();
 ```
+
+`open()` starts the same preparation automatically. Hosts that fetch installation
+credentials asynchronously may pass that promise to `prepare(credentialsReady)`;
+`send()` waits for it instead of falling through to the local demo while the real
+runtime is still being configured. Repeated and concurrent preparation calls share
+one token/session request.
 
 Use `locale="en-US"` for the built-in English dictionary or pass a JSON `translations` attribute to override individual labels. Product cards support size, color, and quantity selection before emitting `promptrails:cart-add`. In the summary card mode the card's add button opens a drawer for that selection and emits `promptrails:cart-intent` (`productId`, `slug`, `name`) on the click; the drawer's `promptrails:cart-add` then carries `viaDrawer: true`, so analytics can count the click once.
 

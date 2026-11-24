@@ -102,6 +102,8 @@ export class BrowserChatError extends Error {
 
 export interface BrowserChatRuntime {
   readonly sessionId: string;
+  /** Warm the short-lived token and resumable session before the first message. */
+  prepare?(): Promise<void>;
   createSession(title?: string): Promise<BrowserSessionResponse>;
   hydrate(): Promise<Message[]>;
   listMessages(options?: { tail?: boolean }): Promise<Message[]>;
@@ -554,6 +556,13 @@ export function createBrowserChatRuntime(config: BrowserRuntimeConfig): BrowserC
   const runtime: BrowserChatRuntime = {
     get sessionId() {
       return sessionId;
+    },
+
+    async prepare(): Promise<void> {
+      // A restored session can outlive the short-lived access token. Warm both:
+      // ensureSession() is a no-op for a restored session, while the token call
+      // remains deduplicated with any request ensureSession starts.
+      await Promise.all([ensureAccessToken(), ensureSession()]);
     },
 
     async createSession(title?: string): Promise<BrowserSessionResponse> {

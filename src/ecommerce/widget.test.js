@@ -451,6 +451,74 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shouldRequestSessionRating()).toBe(true);
   });
 
+  it("warms the remote runtime when the assistant opens", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    const prepare = vi.fn().mockResolvedValue(undefined);
+    widget.runtime = { prepare };
+
+    widget.open();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(prepare).toHaveBeenCalledOnce();
+  });
+
+  it("renders streamed content into one final assistant message", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.ready = true;
+    widget.hydrationPromise = Promise.resolve();
+    widget.runtime = {
+      sessionId: "3L0X2OkNphRITFyLIMDDQfSK771",
+      async *sendMessageStream() {
+        yield { type: "execution", executionId: "exec-1" };
+        yield { type: "content", content: "İki " };
+        yield { type: "content", content: "seçenek buldum." };
+        yield { type: "done", output: { message: "İki seçenek buldum." } };
+      },
+    };
+
+    await widget.send("Ceket öner");
+
+    const assistants = widget.messages.filter((message) => message.role === "assistant");
+    expect(assistants).toHaveLength(1);
+    expect(assistants[0]).toMatchObject({
+      text: "İki seçenek buldum.",
+      executionId: "exec-1",
+    });
+  });
+
+  it("waits for credential-driven hydration before adding a new turn", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    document.body.appendChild(widget);
+    widget.ready = true;
+    let finishInitialization;
+    let finishHydration;
+    const initialization = new Promise((resolve) => {
+      finishInitialization = resolve;
+    });
+    const hydration = new Promise((resolve) => {
+      finishHydration = resolve;
+    });
+    widget.initializationPromise = initialization;
+    widget.runtime = {
+      sessionId: "3L0X2OkNphRITFyLIMDDQfSK771",
+      async *sendMessageStream() {
+        yield { type: "done", output: { message: "Yeni cevap" } };
+      },
+    };
+
+    const sending = widget.send("Yeni soru");
+    widget.hydrationPromise = hydration;
+    finishInitialization();
+    await Promise.resolve();
+    expect(widget.messages).toHaveLength(0);
+    finishHydration();
+    await sending;
+
+    expect(widget.messages.map((message) => message.text)).toEqual(["Yeni soru", "Yeni cevap"]);
+  });
+
   it("does not activate a rating when an already closed widget is closed again", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("session-rating-enabled", "true");

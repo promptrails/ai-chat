@@ -61,6 +61,8 @@ export interface PromptRailsShopAssistantElement extends HTMLElement {
   open(): void;
   close(): void;
   toggle(next: boolean): void;
+  /** Warm browser credentials and the resumable chat session before the first send. */
+  prepare(initializer?: Promise<unknown>): Promise<void>;
   send(content: string): Promise<void>;
   newSession(): Promise<void>;
   clearVisitor(): void;
