@@ -1239,6 +1239,122 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.textContent).not.toContain("2. Ürüne %30 İndirim");
   });
 
+  it("keeps the promotion label consistent with the displayed old and campaign prices", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({
+      output: { message: "" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "stacked-discount-jacket",
+            kind: "product",
+            attributes: {
+              name: "Erkek Siyah Kapitone Dikişli Deri Biker Mont",
+              price: 22990,
+              promotions: [
+                {
+                  label: "Sepette %30 İndirim",
+                  condition: "cart",
+                  discounted_price: 14484,
+                },
+              ],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+    widget.messages = [{ role: "assistant", text: answer.message, products: answer.products }];
+
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelector(".promotion-label")?.textContent).toBe(
+      "Sepette %37 İndirim",
+    );
+    expect(widget.shadowRoot?.querySelector(".price del")?.textContent).toContain("22.990");
+    expect(widget.shadowRoot?.querySelector(".price strong")?.textContent).toContain("14.484");
+  });
+
+  it("does not partially rewrite compound or descriptive promotion percentages", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const labelFor = (label, discountedPrice) =>
+      widget.normalizeAnswer({
+        output: { message: "" },
+        ui: {
+          version: "1",
+          resources: [
+            {
+              id: label,
+              kind: "product",
+              attributes: {
+                name: "Campaign product",
+                price: 1000,
+                promotions: [{ label, condition: "cart", discounted_price: discountedPrice }],
+              },
+            },
+          ],
+          actions: [],
+          suggestions: [],
+        },
+      }).products[0].promotionLabel;
+
+    expect(labelFor("Sepette %20 + %10 İndirim", 720)).toBe("Sepette %20 + %10 İndirim");
+    expect(labelFor("100% pamuk, sepette %10 indirim", 900)).toBe(
+      "100% pamuk, sepette %10 indirim",
+    );
+    expect(labelFor("100% pamuk, sepette indirim", 900)).toBe("100% pamuk, sepette indirim");
+    expect(labelFor("100% cotton — discounted in cart", 900)).toBe(
+      "100% cotton — discounted in cart",
+    );
+    expect(labelFor("Sepette %20 İndirim + 100 TL kupon", 700)).toBe(
+      "Sepette %20 İndirim + 100 TL kupon",
+    );
+  });
+
+  it("preserves an incremental promotion label on an already-discounted product", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({
+      output: { message: "" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "already-discounted",
+            kind: "product",
+            attributes: {
+              name: "Discounted product",
+              price: 800,
+              compare_at_price: 1000,
+              promotions: [
+                {
+                  label: "Sepette ekstra %20 İndirim",
+                  condition: "cart",
+                  discounted_price: 640,
+                },
+              ],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+
+    expect(answer.products[0]).toMatchObject({
+      price: 640,
+      compareAt: 1000,
+      promotionLabel: "Sepette ekstra %20 İndirim",
+    });
+  });
+
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");

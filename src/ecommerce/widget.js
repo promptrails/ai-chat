@@ -392,6 +392,45 @@ import { normalizeChatUI } from "../ui/protocol";
       );
     const displayPrice = promotion?.discountedPrice || price;
     if (promotion && compareAt <= displayPrice) compareAt = price;
+    const promotionLabel = (() => {
+      if (!promotion?.label || !(compareAt > displayPrice)) return promotion?.label || "";
+      // A product that is already marked down can describe the cart campaign
+      // relative to its current price (for example another 20% off), while the
+      // card strikes the older reference price. Rewriting that label from the
+      // reference price would turn an accurate incremental benefit into an
+      // incorrect total-discount claim.
+      if (compareAt > price) return promotion.label;
+      const percentagePattern = /(\d+(?:[.,]\d+)?)\s*%|%\s*(\d+(?:[.,]\d+)?)/g;
+      const percentageMatches = [...promotion.label.matchAll(percentagePattern)];
+      const lowerLabel = promotion.label.toLocaleLowerCase("tr");
+      // Only rewrite an unambiguous single-discount label. Compound campaigns
+      // and descriptive percentages (for example "100% pamuk") must keep the
+      // merchant-authored wording rather than receiving a misleading partial
+      // substitution.
+      if (percentageMatches.length !== 1) return promotion.label;
+      const statedPercent = percentageMatches[0];
+      const matchStart = statedPercent.index ?? 0;
+      const matchEnd = matchStart + statedPercent[0].length;
+      const labelWithoutPercent = lowerLabel.slice(0, matchStart) + lowerLabel.slice(matchEnd);
+      // Another number can represent a coupon, threshold, item count, or other
+      // stacked benefit. Recomputing only the percentage would make that compound
+      // campaign claim misleading, so preserve the merchant label verbatim.
+      if (/\d/.test(labelWithoutPercent)) return promotion.label;
+      const beforePercent = lowerLabel.slice(0, matchStart).trimEnd();
+      const afterPercent = lowerLabel.slice(matchEnd).trimStart();
+      const describesDiscount =
+        /(?:indirim|discount)\s*$/.test(beforePercent) ||
+        /^(?:oranında\s+)?(?:indirim|discount)\b/.test(afterPercent);
+      if (!describesDiscount) return promotion.label;
+      const effectivePercent = Math.round((1 - displayPrice / compareAt) * 100);
+      if (!(effectivePercent > 0 && effectivePercent < 100)) return promotion.label;
+      const stated = Number((statedPercent[1] || statedPercent[2]).replace(",", "."));
+      if (Math.abs(stated - effectivePercent) < 1) return promotion.label;
+      const effectiveLabel = statedPercent[0].trim().startsWith("%")
+        ? `%${effectivePercent}`
+        : `${effectivePercent}%`;
+      return promotion.label.replace(statedPercent[0], effectiveLabel);
+    })();
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
     // Without per-option variants the cart can only ever add the one variant the
     // answer selected, so offering the other sizes and colours would put an
@@ -411,7 +450,7 @@ import { normalizeChatUI } from "../ui/protocol";
       description: boundedText(attributes.description ?? attributes.aciklama, 800),
       price: displayPrice,
       compareAt: compareAt > displayPrice ? compareAt : 0,
-      promotionLabel: promotion?.label || "",
+      promotionLabel,
       imageUrl: firstImageUrl(
         attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images,
       ),
