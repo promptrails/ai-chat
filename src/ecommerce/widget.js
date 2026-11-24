@@ -392,6 +392,19 @@ import { normalizeChatUI } from "../ui/protocol";
       );
     const displayPrice = promotion?.discountedPrice || price;
     if (promotion && compareAt <= displayPrice) compareAt = price;
+    const promotionLabel = (() => {
+      if (!promotion?.label || !(compareAt > displayPrice)) return promotion?.label || "";
+      const statedPercent = promotion.label.match(/(\d+(?:[.,]\d+)?)\s*%|%\s*(\d+(?:[.,]\d+)?)/);
+      if (!statedPercent) return promotion.label;
+      const effectivePercent = Math.round((1 - displayPrice / compareAt) * 100);
+      if (!(effectivePercent > 0 && effectivePercent < 100)) return promotion.label;
+      const stated = Number((statedPercent[1] || statedPercent[2]).replace(",", "."));
+      if (Math.abs(stated - effectivePercent) < 1) return promotion.label;
+      const effectiveLabel = statedPercent[0].trim().startsWith("%")
+        ? `%${effectivePercent}`
+        : `${effectivePercent}%`;
+      return promotion.label.replace(statedPercent[0], effectiveLabel);
+    })();
     const url = mediaUrl(attributes.url ?? attributes.product_url ?? attributes.link);
     // Without per-option variants the cart can only ever add the one variant the
     // answer selected, so offering the other sizes and colours would put an
@@ -411,7 +424,7 @@ import { normalizeChatUI } from "../ui/protocol";
       description: boundedText(attributes.description ?? attributes.aciklama, 800),
       price: displayPrice,
       compareAt: compareAt > displayPrice ? compareAt : 0,
-      promotionLabel: promotion?.label || "",
+      promotionLabel,
       imageUrl: firstImageUrl(
         attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images,
       ),

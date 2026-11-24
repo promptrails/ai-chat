@@ -1239,6 +1239,46 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.textContent).not.toContain("2. Ürüne %30 İndirim");
   });
 
+  it("keeps the promotion label consistent with the displayed old and campaign prices", () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("product-source", "response");
+    document.body.appendChild(widget);
+    const answer = widget.normalizeAnswer({
+      output: { message: "" },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "stacked-discount-jacket",
+            kind: "product",
+            attributes: {
+              name: "Erkek Siyah Kapitone Dikişli Deri Biker Mont",
+              price: 22990,
+              promotions: [
+                {
+                  label: "Sepette %30 İndirim",
+                  condition: "cart",
+                  discounted_price: 14484,
+                },
+              ],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+    widget.messages = [{ role: "assistant", text: answer.message, products: answer.products }];
+
+    widget.paintMessages();
+
+    expect(widget.shadowRoot?.querySelector(".promotion-label")?.textContent).toBe(
+      "Sepette %37 İndirim",
+    );
+    expect(widget.shadowRoot?.querySelector(".price del")?.textContent).toContain("22.990");
+    expect(widget.shadowRoot?.querySelector(".price strong")?.textContent).toContain("14.484");
+  });
+
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
     widget.setAttribute("product-source", "response");
