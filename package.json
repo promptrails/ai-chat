@@ -1,6 +1,6 @@
 {
   "name": "@promptrails/ai-chat",
-  "version": "0.9.23",
+  "version": "0.9.24",
   "description": "Embeddable AI chat widget + React hooks for building AI chat interfaces",
   "license": "MIT",
   "type": "module",
