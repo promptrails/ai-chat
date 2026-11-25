@@ -178,7 +178,9 @@ hallucinated selections are ignored. Camel-case `selectedSize` and
 `selectedColor` aliases are also accepted.
 
 Verified `compare_at_price` / `compareAtPrice` values render as a struck-through
-reference price only when they are greater than the current price. Product
+reference price only when they are greater than the current price. When a
+verified cart discount is shown, its comparison uses the current selling
+price before that discount, not a previous list price. Product
 titles link to the same sanitized product URL as the inspect action. A single
 size or color is rendered as a locked value instead of a misleading selector.
 Set `show-quantity="false"` when the storefront always adds one item and does

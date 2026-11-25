@@ -1317,43 +1317,54 @@ describe("PromptRails ecommerce widget", () => {
     );
   });
 
-  it("preserves an incremental promotion label on an already-discounted product", () => {
-    const widget = document.createElement("promptrails-shop-assistant");
-    widget.setAttribute("product-source", "response");
-    document.body.appendChild(widget);
-    const answer = widget.normalizeAnswer({
-      output: { message: "" },
-      ui: {
-        version: "1",
-        resources: [
-          {
-            id: "already-discounted",
-            kind: "product",
-            attributes: {
-              name: "Discounted product",
-              price: 800,
-              compare_at_price: 1000,
-              promotions: [
-                {
-                  label: "Sepette ekstra %20 İndirim",
-                  condition: "cart",
-                  discounted_price: 640,
-                },
-              ],
+  it.each([
+    { sellingPrice: 800, listPrice: 1000, cartPrice: 640, label: "Sepette ekstra %20 İndirim" },
+    {
+      sellingPrice: 20691,
+      listPrice: 22990,
+      cartPrice: 14483.7,
+      label: "Sepette %30 İndirim",
+    },
+  ])(
+    "uses the selling price as the reference for $label",
+    ({ sellingPrice, listPrice, cartPrice, label }) => {
+      const widget = document.createElement("promptrails-shop-assistant");
+      widget.setAttribute("product-source", "response");
+      document.body.appendChild(widget);
+      const answer = widget.normalizeAnswer({
+        output: { message: "" },
+        ui: {
+          version: "1",
+          resources: [
+            {
+              id: "already-discounted",
+              kind: "product",
+              attributes: {
+                name: "Discounted product",
+                price: sellingPrice,
+                compare_at_price: listPrice,
+                promotions: [
+                  {
+                    label,
+                    condition: "cart",
+                    discounted_price: cartPrice,
+                  },
+                ],
+              },
             },
-          },
-        ],
-        actions: [],
-        suggestions: [],
-      },
-    });
+          ],
+          actions: [],
+          suggestions: [],
+        },
+      });
 
-    expect(answer.products[0]).toMatchObject({
-      price: 640,
-      compareAt: 1000,
-      promotionLabel: "Sepette ekstra %20 İndirim",
-    });
-  });
+      expect(answer.products[0]).toMatchObject({
+        price: cartPrice,
+        compareAt: sellingPrice,
+        promotionLabel: label,
+      });
+    },
+  );
 
   it("ignores selected variants that are not in the allowlisted options", () => {
     const widget = document.createElement("promptrails-shop-assistant");
