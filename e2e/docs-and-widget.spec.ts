@@ -93,6 +93,7 @@ test("shows a multi-buy offer separately from the selling price in summary cards
   await expect(offer).toBeVisible();
   await expect(offer).toContainText("2 ve üzeri %30 indirim");
   await expect(offer).toContainText(/4\.375/);
+  expect(await offer.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 });
 
 test("docs show the package version and generate a complete browser snippet", async ({ page }) => {

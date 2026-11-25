@@ -378,21 +378,36 @@ import { normalizeChatUI } from "../ui/protocol";
       variantCompareAt,
     );
     const promotions = (Array.isArray(attributes.promotions) ? attributes.promotions : [])
-      .map((candidate) => ({
-        label: boundedText(candidate?.label, 160),
-        condition: boundedText(candidate?.condition, 40).toLowerCase(),
-        discountedPrice: finiteNumber(candidate?.discounted_price, candidate?.discountedPrice),
-      }))
+      .map((candidate) => {
+        const condition = boundedText(candidate?.condition, 40).toLowerCase();
+        const amounts = [candidate?.discounted_price, candidate?.discountedPrice];
+        return {
+          label: boundedText(candidate?.label, 160),
+          condition,
+          discountedPrice: finiteNumber(
+            ...(condition === "multi_buy"
+              ? amounts.filter(
+                  (amount) =>
+                    typeof amount === "number" ||
+                    (typeof amount === "string" && /^\d+(?:\.\d+)?$/.test(amount.trim())),
+                )
+              : amounts),
+          ),
+        };
+      })
       .filter(
         (candidate) =>
           candidate.label && candidate.discountedPrice > 0 && candidate.discountedPrice < price,
       );
     const promotion = promotions.find((candidate) => candidate.condition !== "multi_buy");
+    const displayPrice = promotion?.discountedPrice || price;
     // Keep quantity-dependent offers separate from the primary price and
     // price comparison. They describe a qualifying purchase, not the price
     // of adding one item and not a discount stacked onto the cart price.
-    const multiBuyPromotion = promotions.find((candidate) => candidate.condition === "multi_buy");
-    const displayPrice = promotion?.discountedPrice || price;
+    const multiBuyPromotion = promotions.find(
+      (candidate) =>
+        candidate.condition === "multi_buy" && candidate.discountedPrice < displayPrice,
+    );
     // A cart discount applies on top of the current selling price. When a
     // product also has a list price, showing that older price beside the cart
     // amount makes the label appear to describe the combined discount.
@@ -482,6 +497,7 @@ import { normalizeChatUI } from "../ui/protocol";
         "catalog-url",
         "product-source",
         "product-card-mode",
+        "max-product-cards",
         "brand",
         "assistant-name",
         "assistant-mark",
@@ -699,6 +715,9 @@ import { normalizeChatUI } from "../ui/protocol";
         productSource: this.getAttribute("product-source") === "response" ? "response" : "catalog",
         productCardMode:
           this.getAttribute("product-card-mode") === "summary" ? "summary" : "commerce",
+        maxProductCards: /^[1-5]$/.test(this.getAttribute("max-product-cards"))
+          ? Number(this.getAttribute("max-product-cards"))
+          : 3,
         brand,
         assistantName: this.getAttribute("assistant-name")?.trim() || `${brand} Stil Danışmanı`,
         assistantMark:
@@ -772,6 +791,7 @@ import { normalizeChatUI } from "../ui/protocol";
         size: "Size",
         color: "Color",
         quantity: "Quantity",
+        multiBuy: "Multi-buy",
         shipping: "Shipment",
         order: "Order",
         feedback: "Was this helpful?",
@@ -814,6 +834,7 @@ import { normalizeChatUI } from "../ui/protocol";
         size: "Beden",
         color: "Renk",
         quantity: "Adet",
+        multiBuy: "Çoklu alım",
         shipping: "Kargo takibi",
         order: "Sipariş",
         feedback: "Bu öneri yardımcı oldu mu?",
@@ -1986,7 +2007,7 @@ import { normalizeChatUI } from "../ui/protocol";
             : null;
         })
         .filter(Boolean)
-        .slice(0, 3);
+        .slice(0, this.config.maxProductCards);
       return {
         text: messageWithActions.text,
         actions: messageActions,
@@ -2220,7 +2241,7 @@ import { normalizeChatUI } from "../ui/protocol";
             : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`
         }
         ${summary && product.canAdd !== false && product.inStock !== false ? `<button type="button" class="product-add-trigger" data-cart-drawer-open="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.addLabel || this.labels.add}`)}">＋</button>` : ""}
-        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3>${product.promotionLabel ? `<span class="promotion-label">${safe(product.promotionLabel)}</span>` : ""}<div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div>${product.multiBuyPromotion ? `<div class="multi-buy-promotion" part="multi-buy-promotion"><span>${safe(product.multiBuyPromotion.label)}</span> <strong>${offerMoney.format(product.multiBuyPromotion.discountedPrice)}</strong></div>` : ""}<p>${safe(product.reason)}</p></div>
+        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3>${product.promotionLabel ? `<span class="promotion-label">${safe(product.promotionLabel)}</span>` : ""}<div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div>${product.multiBuyPromotion ? `<div class="multi-buy-promotion" part="multi-buy-promotion"><span>${safe(this.labels.multiBuy)} · ${safe(product.multiBuyPromotion.label)}</span> <strong>${offerMoney.format(product.multiBuyPromotion.discountedPrice)}</strong></div>` : ""}<p>${safe(product.reason)}</p></div>
         ${
           !summary && (product.sizes?.length || product.colors?.length)
             ? `<div class="variants">

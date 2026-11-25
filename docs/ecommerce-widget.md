@@ -181,12 +181,15 @@ Verified `compare_at_price` / `compareAtPrice` values render as a struck-through
 reference price only when they are greater than the current price. When a
 verified cart discount is shown, its comparison uses the current selling
 price before that discount, not a previous list price. A verified
-`multi_buy` promotion with a positive discounted price below the selling
-price is shown on a separate line with its merchant-provided condition.
+`multi_buy` promotion with a positive discounted price below the displayed
+price is shown on a separate, localized multi-buy line with the merchant label.
 It does not replace the main price, affect the reference price, or combine
 with a cart discount. Product
 titles link to the same sanitized product URL as the inspect action. A single
 size or color is rendered as a locked value instead of a misleading selector.
+Responses show up to three product cards by default. Set
+`max-product-cards="5"` on the element to display up to five cards in the order
+returned by the agent; the widget never generates extra products.
 Set `show-quantity="false"` when the storefront always adds one item and does
 not need a quantity control inside recommendation cards. Set
 `color-picker="swatches"` to render accessible circular color choices instead

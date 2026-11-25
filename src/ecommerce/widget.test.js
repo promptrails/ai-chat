@@ -1215,6 +1215,11 @@ describe("PromptRails ecommerce widget", () => {
                   discounted_price: 3591,
                 },
                 {
+                  label: "Daha düşük olmayan çoklu teklif",
+                  condition: "multi_buy",
+                  discounted_price: 3800,
+                },
+                {
                   label: "2. Ürüne %30 İndirim",
                   condition: "multi_buy",
                   discounted_price: 2793,
@@ -1237,7 +1242,7 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".price del")?.textContent).toContain("3.990");
     expect(widget.shadowRoot?.querySelector(".price strong")?.textContent).toContain("3.591");
     const multiBuy = widget.shadowRoot?.querySelector(".multi-buy-promotion");
-    expect(multiBuy?.querySelector("span")?.textContent).toBe("2. Ürüne %30 İndirim");
+    expect(multiBuy?.querySelector("span")?.textContent).toBe("Çoklu alım · 2. Ürüne %30 İndirim");
     expect(multiBuy?.querySelector("strong")?.textContent).toContain("2.793");
     expect(multiBuy?.previousElementSibling?.className).toBe("price");
   });
@@ -1263,11 +1268,13 @@ describe("PromptRails ecommerce widget", () => {
                 promotions: [
                   { label: "Invalid higher price", condition: "multi_buy", discounted_price: 7000 },
                   { label: "Invalid zero price", condition: "multi_buy", discounted_price: 0 },
+                  { label: "Invalid boolean", condition: "multi_buy", discounted_price: true },
+                  { label: "Invalid array", condition: "multi_buy", discounted_price: [4375] },
                   { label: "", condition: "multi_buy", discounted_price: 4375 },
                   {
                     label: "2 ve üzeri %30 indirim",
                     condition: "multi_buy",
-                    discounted_price: 4375.5,
+                    discounted_price: "4375.5",
                   },
                 ],
               },
@@ -1288,7 +1295,7 @@ describe("PromptRails ecommerce widget", () => {
       expect(root?.querySelector(".promotion-label")).toBeNull();
       expect(root?.querySelectorAll(".multi-buy-promotion")).toHaveLength(1);
       expect(root?.querySelector(".multi-buy-promotion span")?.textContent).toBe(
-        "2 ve üzeri %30 indirim",
+        "Çoklu alım · 2 ve üzeri %30 indirim",
       );
       expect(root?.querySelector(".multi-buy-promotion strong")?.textContent).toContain("4.375,5");
     },
@@ -1327,6 +1334,41 @@ describe("PromptRails ecommerce widget", () => {
     expect(widget.shadowRoot?.querySelector(".multi-buy-promotion")).toBeNull();
     expect(widget.shadowRoot?.querySelector(".price strong")?.textContent).toContain("1.000");
   });
+
+  it.each([
+    { limit: undefined, expected: 3 },
+    { limit: "5", expected: 5 },
+    { limit: "9", expected: 3 },
+  ])(
+    "keeps the default card count unless a valid maximum is configured ($limit)",
+    ({ limit, expected }) => {
+      const widget = document.createElement("promptrails-shop-assistant");
+      widget.setAttribute("product-source", "response");
+      if (limit !== undefined) widget.setAttribute("max-product-cards", limit);
+      document.body.appendChild(widget);
+      const answer = widget.normalizeAnswer({
+        output: { message: "Pick" },
+        ui: {
+          version: "1",
+          resources: Array.from({ length: 6 }, (_, index) => ({
+            id: String(index + 1),
+            kind: "product",
+            attributes: { name: `Product ${index + 1}`, price: 100 },
+          })),
+          actions: [],
+          suggestions: [],
+        },
+      });
+      widget.messages = [{ role: "assistant", text: answer.message, products: answer.products }];
+
+      widget.paintMessages();
+
+      expect(answer.products.map((product) => product.id)).toEqual(
+        Array.from({ length: expected }, (_, index) => String(index + 1)),
+      );
+      expect(widget.shadowRoot?.querySelectorAll(".recommendation")).toHaveLength(expected);
+    },
+  );
 
   it("keeps the promotion label consistent with the displayed old and campaign prices", () => {
     const widget = document.createElement("promptrails-shop-assistant");
