@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
 const packageVersion = JSON.parse(
@@ -40,6 +41,58 @@ test("widget remains inside the mobile viewport", async ({ page }) => {
       .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
     expect(composerFontSize).toBeGreaterThanOrEqual(16);
   }
+});
+
+test("shows a multi-buy offer separately from the selling price in summary cards", async ({
+  page,
+}) => {
+  await page.setContent(
+    '<promptrails-shop-assistant product-source="response" product-card-mode="summary"></promptrails-shop-assistant>',
+  );
+  await page.addScriptTag({
+    path: fileURLToPath(new URL("../dist/ecommerce.global.js", import.meta.url)),
+  });
+  const assistant = page.locator("promptrails-shop-assistant");
+  await assistant.getByRole("button", { name: "Sohbeti aç" }).click();
+  await assistant.evaluate((element) => {
+    const widget = element as HTMLElement & {
+      normalizeAnswer: (answer: object) => { products: unknown[] };
+      messages: object[];
+      paintMessages: () => void;
+    };
+    const { products } = widget.normalizeAnswer({
+      output: { message: "İstediğin kabanı aşağıda inceleyebilirsin." },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "4732",
+            kind: "product",
+            attributes: {
+              name: "Kahverengi Ari Maxi Kaşe Kaban",
+              price: 6250,
+              promotions: [
+                { label: "2 ve üzeri %30 indirim", condition: "multi_buy", discounted_price: 4375 },
+              ],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+    widget.messages = [
+      { role: "assistant", text: "İstediğin kabanı aşağıda inceleyebilirsin.", products },
+    ];
+    widget.paintMessages();
+  });
+  const card = assistant.locator("article.recommendation");
+  await expect(card.locator(".price strong")).toHaveText(/6\.250/);
+  await expect(card.locator(".price del")).toHaveCount(0);
+  const offer = card.locator(".multi-buy-promotion");
+  await expect(offer).toBeVisible();
+  await expect(offer).toContainText("2 ve üzeri %30 indirim");
+  await expect(offer).toContainText(/4\.375/);
 });
 
 test("docs show the package version and generate a complete browser snippet", async ({ page }) => {

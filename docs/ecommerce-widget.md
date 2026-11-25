@@ -180,7 +180,11 @@ hallucinated selections are ignored. Camel-case `selectedSize` and
 Verified `compare_at_price` / `compareAtPrice` values render as a struck-through
 reference price only when they are greater than the current price. When a
 verified cart discount is shown, its comparison uses the current selling
-price before that discount, not a previous list price. Product
+price before that discount, not a previous list price. A verified
+`multi_buy` promotion with a positive discounted price below the selling
+price is shown on a separate line with its merchant-provided condition.
+It does not replace the main price, affect the reference price, or combine
+with a cart discount. Product
 titles link to the same sanitized product URL as the inspect action. A single
 size or color is rendered as a locked value instead of a misleading selector.
 Set `show-quantity="false"` when the storefront always adds one item and does

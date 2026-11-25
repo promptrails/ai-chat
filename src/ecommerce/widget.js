@@ -377,19 +377,21 @@ import { normalizeChatUI } from "../ui/protocol";
       compareAtValue?.value,
       variantCompareAt,
     );
-    const promotion = (Array.isArray(attributes.promotions) ? attributes.promotions : [])
+    const promotions = (Array.isArray(attributes.promotions) ? attributes.promotions : [])
       .map((candidate) => ({
         label: boundedText(candidate?.label, 160),
         condition: boundedText(candidate?.condition, 40).toLowerCase(),
         discountedPrice: finiteNumber(candidate?.discounted_price, candidate?.discountedPrice),
       }))
-      .find(
+      .filter(
         (candidate) =>
-          candidate.label &&
-          candidate.condition !== "multi_buy" &&
-          candidate.discountedPrice > 0 &&
-          candidate.discountedPrice < price,
+          candidate.label && candidate.discountedPrice > 0 && candidate.discountedPrice < price,
       );
+    const promotion = promotions.find((candidate) => candidate.condition !== "multi_buy");
+    // Keep quantity-dependent offers separate from the primary price and
+    // price comparison. They describe a qualifying purchase, not the price
+    // of adding one item and not a discount stacked onto the cart price.
+    const multiBuyPromotion = promotions.find((candidate) => candidate.condition === "multi_buy");
     const displayPrice = promotion?.discountedPrice || price;
     // A cart discount applies on top of the current selling price. When a
     // product also has a list price, showing that older price beside the cart
@@ -452,6 +454,7 @@ import { normalizeChatUI } from "../ui/protocol";
       price: displayPrice,
       compareAt: compareAt > displayPrice ? compareAt : 0,
       promotionLabel,
+      multiBuyPromotion,
       imageUrl: firstImageUrl(
         attributes.imageUrl ?? attributes.image_url ?? attributes.image ?? attributes.images,
       ),
@@ -2198,6 +2201,13 @@ import { normalizeChatUI } from "../ui/protocol";
         currency: this.config.currency,
         maximumFractionDigits: 0,
       });
+      const offerMoney = products.some((product) => product.multiBuyPromotion)
+        ? new Intl.NumberFormat(this.config.locale, {
+            style: "currency",
+            currency: this.config.currency,
+            minimumFractionDigits: 0,
+          })
+        : null;
       const summary = this.config.productCardMode === "summary";
       const cards = `<div class="recommendations-list${summary ? " is-summary" : ""}">${products
         .map(
@@ -2210,7 +2220,7 @@ import { normalizeChatUI } from "../ui/protocol";
             : `<button type="button" class="recommendation-image product-image-link" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.viewLabel || this.labels.view}`)}" style="background-image:url('${safe(mediaUrl(product.imageUrl))}');background-position:${slotPosition[product.imageSlot] || "center"};background-size:${Number.isInteger(product.imageSlot) ? "400% 200%" : "cover"}"></button>`
         }
         ${summary && product.canAdd !== false && product.inStock !== false ? `<button type="button" class="product-add-trigger" data-cart-drawer-open="${safe(product.id)}" aria-label="${safe(`${product.name} ${product.addLabel || this.labels.add}`)}">＋</button>` : ""}
-        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3>${product.promotionLabel ? `<span class="promotion-label">${safe(product.promotionLabel)}</span>` : ""}<div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div><p>${safe(product.reason)}</p></div>
+        <div class="recommendation-copy"><small>${safe(product.category)}</small><h3>${product.canView === false ? safe(product.name) : `<button type="button" class="product-title" data-view="${safe(product.slug)}" data-product-id="${safe(product.id)}">${safe(product.name)}</button>`}</h3>${product.promotionLabel ? `<span class="promotion-label">${safe(product.promotionLabel)}</span>` : ""}<div class="price">${product.compareAt > product.price ? `<del>${money.format(Number(product.compareAt) || 0)}</del>` : ""}<strong>${money.format(Number(product.price) || 0)}</strong></div>${product.multiBuyPromotion ? `<div class="multi-buy-promotion" part="multi-buy-promotion"><span>${safe(product.multiBuyPromotion.label)}</span> <strong>${offerMoney.format(product.multiBuyPromotion.discountedPrice)}</strong></div>` : ""}<p>${safe(product.reason)}</p></div>
         ${
           !summary && (product.sizes?.length || product.colors?.length)
             ? `<div class="variants">
@@ -2350,6 +2360,8 @@ import { normalizeChatUI } from "../ui/protocol";
         .price { display: flex; align-items: baseline; gap: 7px; }
         .price del { color: var(--pt-chat-muted, #68655f); font-size: 9px; }
         .promotion-label { display: block; margin: 4px 0 2px; color: var(--pt-chat-muted, #68655f); font-size: 9px; font-weight: 600; line-height: 1.25; }
+        .multi-buy-promotion { margin-top: 4px; color: var(--pt-chat-muted, #68655f); font-size: 10px; line-height: 1.3; overflow-wrap: anywhere; }
+        .multi-buy-promotion strong { white-space: nowrap; }
         .recommendation-copy > p {
           display: -webkit-box;
           overflow: hidden;
