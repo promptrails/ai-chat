@@ -488,6 +488,72 @@ describe("PromptRails ecommerce widget", () => {
     });
   });
 
+  it.each([
+    ["Kadın siyah deri ceket önerir misin?", true, true, [], true],
+    ["Siyah deri ceket önerir misin?", true, true, [], true],
+    ["Siyah deri ceket önerir misin?", false, true, [], false],
+    ["Siyah deri ceket önerir misin?", true, false, [], false],
+    ["Siyah deri ceket önerir misin? Fiyatı ne?", true, true, [], false],
+    ["Kişiselleştirilebilir cüzdan önerir misin?", true, true, [], false],
+    [
+      "Siyah deri ceket önerir misin?",
+      true,
+      true,
+      [{ url: "https://shop.example.com/returns", label: "İade koşulları" }],
+      false,
+    ],
+  ])(
+    "preserves useful reply content for %s (opt-in: %s)",
+    (question, enabled, hasProduct, actions, hidden) => {
+      const widget = document.createElement("promptrails-shop-assistant");
+      widget.setAttribute("card-only-recommendations", String(enabled));
+      widget.setAttribute("product-source", "response");
+      document.body.appendChild(widget);
+      widget.messages = [
+        { role: "user", text: question },
+        {
+          role: "assistant",
+          ...widget.normalizeAnswer({
+            output: {
+              message: "Siyah deri ceket seçeneği.",
+              products: hasProduct ? [{ id: "1", name: "Siyah deri ceket", price: 3990 }] : [],
+            },
+          }),
+          actions,
+        },
+      ];
+
+      widget.paintMessages();
+
+      const answer = widget.shadowRoot.querySelector(".message.assistant");
+      expect(!answer.querySelector(".markdown")).toBe(hidden);
+      if (hasProduct) expect(answer.textContent).toContain("Siyah deri ceket");
+      if (!hidden) expect(answer.querySelector(".markdown").textContent).toContain("seçeneği");
+    },
+  );
+
+  it("does not flash a recommendation draft, but shows the final fallback if there are no cards", async () => {
+    const widget = document.createElement("promptrails-shop-assistant");
+    widget.setAttribute("card-only-recommendations", "true");
+    document.body.appendChild(widget);
+    widget.ready = true;
+    widget.hydrationPromise = Promise.resolve();
+    widget.runtime = {
+      async *sendMessageStream() {
+        yield { type: "execution", executionId: "exec-cards" };
+        yield { type: "content", content: "Gizlenmesi gereken taslak." };
+        expect(widget.shadowRoot.querySelector(".message.assistant")).toBeNull();
+        yield { type: "done", output: { message: "Uygun ürün bulamadım." } };
+      },
+    };
+
+    await widget.send("Siyah deri ceket önerir misin?");
+
+    expect(widget.shadowRoot.querySelector(".message.assistant .markdown").textContent).toBe(
+      "Uygun ürün bulamadım.",
+    );
+  });
+
   it("waits for credential-driven hydration before adding a new turn", async () => {
     const widget = document.createElement("promptrails-shop-assistant");
     document.body.appendChild(widget);

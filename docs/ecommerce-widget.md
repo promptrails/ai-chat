@@ -207,6 +207,11 @@ previous/next controls keep the conversation visible on narrow screens. Set
 `show-quantity="false"` to omit quantity from the drawer and always emit a
 quantity of one. The default `commerce` mode keeps its inline controls.
 
+Set `card-only-recommendations="true"` (React: `cardOnlyRecommendations`) to
+display cards without duplicate message text for standalone Turkish recommendation
+requests. The default is off. Mixed questions, replies without cards, links,
+status cards, and errors retain their message text.
+
 For direct storefront cart integrations, include the verified tool-provided
 `selected_variant_id`. The sanitized value is emitted as `variantId` on
 `promptrails:cart-add`, allowing the host page to call its native cart API from

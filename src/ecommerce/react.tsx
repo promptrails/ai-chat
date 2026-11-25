@@ -14,6 +14,8 @@ export interface ShopAssistantProps {
   catalogUrl?: string;
   productSource?: "catalog" | "response";
   productCardMode?: "commerce" | "summary";
+  /** Omit duplicate reply text for simple Turkish recommendations with product cards. Defaults to false. */
+  cardOnlyRecommendations?: boolean;
   brand?: string;
   assistantName?: string;
   assistantMark?: string;
@@ -65,6 +67,7 @@ const attributes = [
   ["catalogUrl", "catalog-url"],
   ["productSource", "product-source"],
   ["productCardMode", "product-card-mode"],
+  ["cardOnlyRecommendations", "card-only-recommendations"],
   ["brand", "brand"],
   ["assistantName", "assistant-name"],
   ["assistantMark", "assistant-mark"],

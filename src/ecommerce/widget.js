@@ -59,6 +59,21 @@ import { normalizeChatUI } from "../ui/protocol";
     );
     return plainText(customerMessage?.[1] ?? raw);
   };
+  // The opt-in only covers a standalone Turkish recommendation request.
+  // Leave longer or mixed requests on the regular, text-first path.
+  const isPlainRecommendation = (value) => {
+    const text = String(value ?? "").trim();
+    if (!text || text.length > 140 || /[\r\n.!;:]/.test(text)) return false;
+    const match = text
+      .toLocaleLowerCase("tr")
+      .match(/^([^?]+?) öner(?:ir misin|ir misiniz|ebilir misin|ebilir misiniz)?\??$/);
+    return Boolean(
+      match &&
+        !/(?:^|\s)(?:ve|ayrıca|ama|bir de|fiyat\p{L}*|kaç|neden|nasıl|beden\p{L}*|numara\p{L}*|stok\p{L}*|kişiselleştir\p{L}*|kampanya\p{L}*|iade\p{L}*|değişim\p{L}*|karşılaştır\p{L}*)(?:\s|,|$)/u.test(
+          match[1],
+        ),
+    );
+  };
   const mediaUrl = (value) => {
     try {
       const parsed = new URL(String(value ?? "").trim(), location.href);
@@ -497,6 +512,7 @@ import { normalizeChatUI } from "../ui/protocol";
         "catalog-url",
         "product-source",
         "product-card-mode",
+        "card-only-recommendations",
         "max-product-cards",
         "brand",
         "assistant-name",
@@ -715,6 +731,7 @@ import { normalizeChatUI } from "../ui/protocol";
         productSource: this.getAttribute("product-source") === "response" ? "response" : "catalog",
         productCardMode:
           this.getAttribute("product-card-mode") === "summary" ? "summary" : "commerce",
+        cardOnlyRecommendations: this.getAttribute("card-only-recommendations") === "true",
         maxProductCards: /^[1-5]$/.test(this.getAttribute("max-product-cards"))
           ? Number(this.getAttribute("max-product-cards"))
           : 3,
@@ -1788,17 +1805,23 @@ import { normalizeChatUI } from "../ui/protocol";
       this.paintMessages();
       this.setTyping(true);
       let draft = null;
+      const deferDraft = this.config.cardOnlyRecommendations && isPlainRecommendation(content);
       try {
         const result = this.runtime
-          ? await this.askPromptRails(content, (chunk, reset = false) => {
-              if (!draft) {
-                draft = { role: "assistant", text: "", products: [], quickReplies: [] };
-                this.messages.push(draft);
-              }
-              draft.text = reset ? chunk : draft.text + chunk;
-              this.setTyping(false);
-              this.paintMessages();
-            })
+          ? await this.askPromptRails(
+              content,
+              deferDraft
+                ? undefined
+                : (chunk, reset = false) => {
+                    if (!draft) {
+                      draft = { role: "assistant", text: "", products: [], quickReplies: [] };
+                      this.messages.push(draft);
+                    }
+                    draft.text = reset ? chunk : draft.text + chunk;
+                    this.setTyping(false);
+                    this.paintMessages();
+                  },
+            )
           : await this.localAnswer(content);
         if (draft) Object.assign(draft, result);
         else this.messages.push({ role: "assistant", ...result });
@@ -2186,11 +2209,25 @@ import { normalizeChatUI } from "../ui/protocol";
         .querySelector(".conversation")
         ?.classList.toggle("has-messages", this.messages.length > 0);
       target.innerHTML = this.messages
-        .map((message, index) =>
-          message.role === "user"
-            ? `<article class="message user"><p>${safe(message.text)}</p></article>`
-            : `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div><div class="markdown">${renderChatMarkdown(message.text)}</div>${this.actionMarkup(message.actions)}${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`,
-        )
+        .map((message, index) => {
+          if (message.role === "user") {
+            return `<article class="message user"><p>${safe(message.text)}</p></article>`;
+          }
+          const user = this.messages[index - 1];
+          const cardsOnly =
+            this.config.cardOnlyRecommendations &&
+            !message.error &&
+            message.products?.length &&
+            !message.actions?.length &&
+            !message.statusCards?.length &&
+            !/https?:\/\//i.test(message.text || "") &&
+            user?.role === "user" &&
+            isPlainRecommendation(user.text);
+          const markdown = cardsOnly
+            ? ""
+            : `<div class="markdown">${renderChatMarkdown(message.text)}</div>`;
+          return `<article class="message assistant" part="message assistant-message"><span class="mini-avatar">${safe(this.config.assistantMark)}</span><div>${markdown}${this.actionMarkup(message.actions)}${this.productMarkup(message.products)}${this.statusMarkup(message.statusCards)}${this.quickMarkup(message.quickReplies)}${this.feedbackMarkup(message, index)}</div></article>`;
+        })
         .join("");
       this.bind();
       this.scroll(this.messages.at(-1)?.role === "assistant" ? "message" : "bottom");

@@ -2,8 +2,8 @@ import { stat } from "node:fs/promises";
 
 const limits = {
   "dist/widget.global.js": 190 * 1024,
-  // Consent modes, safe CTAs, product controls, the variant drawer, optional session ratings, and commerce card UX live in this dependency-free bundle.
-  "dist/ecommerce.global.js": 93 * 1024,
+  // Includes the opt-in recommendation presentation and conservative intent check.
+  "dist/ecommerce.global.js": 94 * 1024,
   "dist/styles.css": 40 * 1024,
 };
 
