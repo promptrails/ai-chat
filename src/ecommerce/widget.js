@@ -391,14 +391,15 @@ import { normalizeChatUI } from "../ui/protocol";
           candidate.discountedPrice < price,
       );
     const displayPrice = promotion?.discountedPrice || price;
-    if (promotion && compareAt <= displayPrice) compareAt = price;
+    // A cart discount applies on top of the current selling price. When a
+    // product also has a list price, showing that older price beside the cart
+    // amount makes the label appear to describe the combined discount.
+    if (promotion && (compareAt <= displayPrice || promotion.condition === "cart")) {
+      compareAt = price;
+    }
     const promotionLabel = (() => {
       if (!promotion?.label || !(compareAt > displayPrice)) return promotion?.label || "";
-      // A product that is already marked down can describe the cart campaign
-      // relative to its current price (for example another 20% off), while the
-      // card strikes the older reference price. Rewriting that label from the
-      // reference price would turn an accurate incremental benefit into an
-      // incorrect total-discount claim.
+      // Keep merchant wording for non-cart offers with an older reference price.
       if (compareAt > price) return promotion.label;
       const percentagePattern = /(\d+(?:[.,]\d+)?)\s*%|%\s*(\d+(?:[.,]\d+)?)/g;
       const percentageMatches = [...promotion.label.matchAll(percentagePattern)];
