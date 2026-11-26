@@ -187,6 +187,11 @@ It does not replace the main price, affect the reference price, or combine
 with a cart discount. Product
 titles link to the same sanitized product URL as the inspect action. A single
 size or color is rendered as a locked value instead of a misleading selector.
+Set `product-price-display="storefront"` to keep a verified cart price on its
+own line, below the current selling price and any genuine crossed-out reference
+price. This mode preserves the currency's minor units; it never creates a
+reference price from a cart-only discount. Omitting the setting retains the
+default comparison and formatting for existing installations.
 Responses show up to three product cards by default. Set
 `max-product-cards="5"` on the element to display up to five cards in the order
 returned by the agent; the widget never generates extra products.

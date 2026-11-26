@@ -14,6 +14,7 @@ export interface ShopAssistantProps {
   catalogUrl?: string;
   productSource?: "catalog" | "response";
   productCardMode?: "commerce" | "summary";
+  productPriceDisplay?: "storefront";
   brand?: string;
   assistantName?: string;
   assistantMark?: string;
@@ -65,6 +66,7 @@ const attributes = [
   ["catalogUrl", "catalog-url"],
   ["productSource", "product-source"],
   ["productCardMode", "product-card-mode"],
+  ["productPriceDisplay", "product-price-display"],
   ["brand", "brand"],
   ["assistantName", "assistant-name"],
   ["assistantMark", "assistant-mark"],
