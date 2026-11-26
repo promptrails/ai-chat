@@ -96,6 +96,56 @@ test("shows a multi-buy offer separately from the selling price in summary cards
   expect(await offer.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 });
 
+test("renders storefront price tiers without clipping in a summary card", async ({ page }) => {
+  await page.setContent(
+    '<promptrails-shop-assistant product-source="response" product-card-mode="summary" product-price-display="storefront"></promptrails-shop-assistant>',
+  );
+  await page.addScriptTag({
+    path: fileURLToPath(new URL("../dist/ecommerce.global.js", import.meta.url)),
+  });
+  const assistant = page.locator("promptrails-shop-assistant");
+  await assistant.getByRole("button", { name: "Sohbeti aç" }).click();
+  await assistant.evaluate((element) => {
+    const widget = element as HTMLElement & {
+      normalizeAnswer: (answer: object) => { message: string; products: unknown[] };
+      messages: object[];
+      paintMessages: () => void;
+    };
+    const { message, products } = widget.normalizeAnswer({
+      output: { message: "Ceketi aşağıda inceleyebilirsin." },
+      ui: {
+        version: "1",
+        resources: [
+          {
+            id: "jacket",
+            kind: "product",
+            attributes: {
+              name: "Siyah Harlan Blazer Ceket",
+              price: 2750,
+              compare_at: 3450,
+              promotions: [{ label: "Sepette", condition: "cart", discounted_price: 2337.5 }],
+            },
+          },
+        ],
+        actions: [],
+        suggestions: [],
+      },
+    });
+    widget.messages = [{ role: "assistant", text: message, products }];
+    widget.paintMessages();
+  });
+  const card = assistant.locator("article.recommendation");
+  const price = card.locator(".price");
+  const cart = card.locator(".cart-promotion");
+  await expect(price.locator("del")).toHaveText("3.450,00 TL");
+  await expect(price.locator("strong")).toHaveText("2.750,00 TL");
+  await expect(cart).toHaveText("Sepette 2.337,50 TL");
+  for (const line of [price, cart]) {
+    await expect(line).toBeVisible();
+    expect(await line.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  }
+});
+
 test("docs show the package version and generate a complete browser snippet", async ({ page }) => {
   await page.goto("/#usage");
   await expect(page.getByText(`Open source · v${packageVersion}`)).toBeVisible();

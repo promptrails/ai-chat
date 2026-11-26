@@ -1247,6 +1247,86 @@ describe("PromptRails ecommerce widget", () => {
     expect(multiBuy?.previousElementSibling?.className).toBe("price");
   });
 
+  it.each([
+    {
+      display: "storefront",
+      compareAt: 3450,
+      oldPrice: "3.450,00 TL",
+      price: "2.750,00 TL",
+      cart: "2.337,50 TL",
+    },
+    {
+      display: "storefront",
+      compareAt: 0,
+      oldPrice: null,
+      price: "2.750,00 TL",
+      cart: "2.337,50 TL",
+    },
+    {
+      display: "storefront",
+      compareAt: 2600,
+      oldPrice: null,
+      price: "2.750,00 TL",
+      cart: "2.337,50 TL",
+    },
+    { display: null, compareAt: 3450, oldPrice: "₺2.750", price: "₺2.338", cart: null },
+  ])(
+    "renders the comparison and cart price with mode $display and reference $compareAt",
+    ({ display, compareAt, oldPrice, price, cart }) => {
+      const widget = document.createElement("promptrails-shop-assistant");
+      widget.setAttribute("product-source", "response");
+      widget.setAttribute("product-card-mode", "summary");
+      if (display) widget.setAttribute("product-price-display", display);
+      document.body.appendChild(widget);
+      const answer = widget.normalizeAnswer({
+        output: { message: "Pick" },
+        ui: {
+          version: "1",
+          resources: [
+            {
+              id: "jacket",
+              kind: "product",
+              attributes: {
+                name: "Siyah Blazer Ceket",
+                price: 2750,
+                compare_at_price: compareAt,
+                promotions: [
+                  { label: "Sepette", condition: "cart", discounted_price: 2337.5 },
+                  {
+                    label: "2 ve üzeri sepette",
+                    condition: "multi_buy",
+                    discounted_price: 1925.25,
+                  },
+                ],
+              },
+            },
+          ],
+          actions: [],
+          suggestions: [],
+        },
+      });
+      widget.messages = [{ role: "assistant", text: answer.message, products: answer.products }];
+      widget.paintMessages();
+
+      const root = widget.shadowRoot;
+      expect(root.querySelector(".price del")?.textContent ?? null).toBe(oldPrice);
+      expect(root.querySelector(".price strong")?.textContent).toBe(price);
+      expect(root.querySelector(".cart-promotion strong")?.textContent ?? null).toBe(cart);
+      expect(root.querySelector(".cart-promotion span")?.textContent ?? null).toBe(
+        cart ? "Sepette" : null,
+      );
+      expect(root.querySelector(".promotion-label")?.textContent ?? null).toBe(
+        cart ? null : "Sepette",
+      );
+      expect(root.querySelector(".multi-buy-promotion strong")?.textContent).toContain("1.925,25");
+      expect(
+        root
+          .querySelector(".cart-promotion")
+          ?.previousElementSibling?.classList.contains("price") ?? false,
+      ).toBe(Boolean(cart));
+    },
+  );
+
   it.each(["commerce", "summary"])(
     "shows a multi-buy offer separately without changing the selling price in %s cards",
     (mode) => {
